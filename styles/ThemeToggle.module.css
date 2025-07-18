@@ -1,0 +1,92 @@
+.container {
+  position: relative;
+  display: inline-block;
+}
+
+.placeholder {
+  width: 120px;
+  height: 40px;
+  background: transparent;
+}
+
+.toggleButton {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: var(--transition-smooth);
+  gap: 0.5rem;
+  width: auto;
+  text-align: left;
+  height: 40px;
+  min-height: 40px;
+}
+
+.toggleButton:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.toggleButton:active {
+  transform: translateY(0);
+}
+
+.icon {
+  font-size: 16px;
+  line-height: 1;
+  min-width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.label {
+  font-weight: 500;
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+  .toggleButton {
+    padding: 0.5rem 1rem;
+    height: 40px;
+    min-height: 40px;
+  }
+
+  .label {
+    opacity: 0;
+    transform: translateX(-10px);
+    transition: var(--transition-smooth);
+  }
+
+  .toggleButton:hover .label {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .toggleButton {
+    width: 100%;
+  }
+
+  .label {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (max-width: 600px) {
+  .toggleButton {
+    padding: 0.5rem 1rem;
+    height: 40px;
+    min-height: 40px;
+  }
+}

@@ -1,0 +1,55 @@
+.statusIndicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #4caf50;
+  color: white;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  transition: background-color 0.3s ease;
+  height: 40px;
+  min-height: 40px;
+}
+
+.statusIndicator.offline {
+  background: #f44336;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  background: white;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 1rem;
+  text-align: center;
+  color: white;
+  font-weight: 500;
+  z-index: 999;
+  animation: slideDown 0.3s ease-out;
+}
+
+.banner.online {
+  background: #4caf50;
+}
+
+.banner.offline {
+  background: #f44336;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}

@@ -1,0 +1,79 @@
+.result {
+  margin-top: 20px;
+  padding: 15px;
+  background: #222;
+  border-radius: 16px;
+  text-align: center;
+  animation: slideIn 0.3s ease-out;
+}
+
+.checkIcon {
+  font-size: 24px;
+  color: #00d26a;
+  margin-bottom: 8px;
+  animation: scaleIn 0.3s ease-out;
+}
+
+.status {
+  font-size: 18px;
+  font-weight: bold;
+  color: #00d26a;
+  margin-bottom: 16px;
+}
+
+.employeeInfo {
+  text-align: left;
+  padding: 0 10px;
+}
+
+.name {
+  font-size: 24px;
+  font-weight: bold;
+  color: #fff;
+  margin: 0 0 8px 0;
+}
+
+.id {
+  font-size: 16px;
+  color: #aaa;
+  margin: 0 0 4px 0;
+}
+
+.dept {
+  font-size: 18px;
+  color: #fff;
+  margin: 0 0 16px 0;
+}
+
+.timeLabel {
+  font-size: 14px;
+  color: #aaa;
+  margin: 0 0 4px 0;
+}
+
+.time {
+  font-size: 24px;
+  font-weight: bold;
+  color: #fff;
+  margin: 0;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
+}
