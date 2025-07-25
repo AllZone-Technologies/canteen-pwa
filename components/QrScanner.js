@@ -32,11 +32,41 @@ const QrScanner = forwardRef(
     const [isInitialized, setIsInitialized] = useState(false);
     const [isClient, setIsClient] = useState(false);
     const isScanningRef = useRef(false);
-    const restartScannerRef = useRef(null);
+    const initializationInProgressRef = useRef(false);
+    const cleanupInProgressRef = useRef(false);
 
     // Mark as client-side on mount
     useEffect(() => {
       setIsClient(true);
+    }, []);
+
+    const stopScanner = useCallback(async () => {
+      if (cleanupInProgressRef.current) {
+        console.log("Cleanup already in progress, skipping...");
+        return;
+      }
+
+      if (scannerRef.current) {
+        cleanupInProgressRef.current = true;
+        try {
+          console.log("Stopping scanner...");
+          await scannerRef.current.stop();
+          console.log("Scanner stopped successfully");
+        } catch (error) {
+          console.warn("Error stopping scanner:", error);
+        } finally {
+          // Clear the DOM element
+          const readerElement = document.getElementById("reader");
+          if (readerElement) {
+            readerElement.innerHTML = "";
+          }
+
+          scannerRef.current = null;
+          setIsInitialized(false);
+          isScanningRef.current = false;
+          cleanupInProgressRef.current = false;
+        }
+      }
     }, []);
 
     const handleScanSuccess = useCallback(
@@ -52,8 +82,7 @@ const QrScanner = forwardRef(
           setIsProcessing(true);
 
           // Stop the scanner immediately to prevent multiple scans
-          console.log("Stopping scanner after successful scan");
-          stopScanner();
+          await stopScanner();
 
           // Check if employee is already checked in
           const response = await fetch("/api/checkin", {
@@ -72,19 +101,6 @@ const QrScanner = forwardRef(
             showMessage(`${data.employeeId} already checked in`, "error");
             setIsProcessing(false);
             isScanningRef.current = false;
-
-            // Ensure scanner is completely stopped before restarting
-            stopScanner();
-
-            // Wait longer for cleanup and then restart scanner
-            setTimeout(() => {
-              if (isActive && restartScannerRef.current) {
-                console.log(
-                  "Restarting scanner after already checked in message"
-                );
-                restartScannerRef.current();
-              }
-            }, 500); // Increased delay to ensure proper cleanup
             return;
           }
 
@@ -96,77 +112,23 @@ const QrScanner = forwardRef(
           setIsProcessing(false);
           isScanningRef.current = false;
           showMessage("An error occurred. Please try again.", "error");
-
-          // Ensure scanner is completely stopped before restarting
-          stopScanner();
-
-          // Wait longer for cleanup and then restart scanner
-          setTimeout(() => {
-            if (isActive && restartScannerRef.current) {
-              console.log("Restarting scanner after error");
-              restartScannerRef.current();
-            }
-          }, 500); // Increased delay to ensure proper cleanup
         }
       },
-      [isProcessing, setIsProcessing, onScanSuccess, showMessage, isActive]
+      [isProcessing, setIsProcessing, onScanSuccess, showMessage, stopScanner]
     );
-
-    const stopScanner = useCallback(() => {
-      if (scannerRef.current) {
-        try {
-          console.log("Stopping scanner...");
-          // Stop the scanner properly
-          scannerRef.current
-            .stop()
-            .then(() => {
-              console.log("Scanner stopped successfully");
-              // Clear the scanner reference after successful stop
-              scannerRef.current = null;
-              setIsInitialized(false);
-            })
-            .catch((error) => {
-              console.warn("Error stopping scanner:", error);
-              // Force cleanup even if stop fails
-              scannerRef.current = null;
-              setIsInitialized(false);
-            });
-          // Clear the DOM element
-          const readerElement = document.getElementById("reader");
-          if (readerElement) {
-            readerElement.innerHTML = "";
-          }
-        } catch (error) {
-          console.warn("Error stopping scanner:", error);
-          // Force cleanup even if stop fails
-          scannerRef.current = null;
-          setIsInitialized(false);
-        }
-      }
-    }, []);
 
     // Expose methods through ref
     useImperativeHandle(ref, () => ({
-      stop: () => {
+      stop: async () => {
         console.log("Stop method called via ref");
-        stopScanner();
-        isScanningRef.current = false;
+        await stopScanner();
       },
       restart: async () => {
         console.log("Restart method called via ref");
-        // Force stop and reset all state
-        stopScanner();
-        setIsInitialized(false);
-        isScanningRef.current = false;
-
-        // Clear the DOM element
-        const readerElement = document.getElementById("reader");
-        if (readerElement) {
-          readerElement.innerHTML = "";
-        }
+        await stopScanner();
 
         // Wait for cleanup to complete
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        await new Promise((resolve) => setTimeout(resolve, 500));
 
         // Force re-initialization if active
         if (isActive && isClient) {
@@ -176,15 +138,28 @@ const QrScanner = forwardRef(
       },
     }));
 
+    const onScanError = useCallback((error) => {
+      // Only log actual errors, not timeouts
+      if (error?.includes?.("timeout")) return;
+      console.warn(`QR Code scan error: ${error}`);
+    }, []);
+
     const initializeScanner = useCallback(async () => {
       console.log("initializeScanner called", {
         isActive,
         isInitialized,
         isProcessing,
         isScanning: isScanningRef.current,
+        initializationInProgress: initializationInProgressRef.current,
       });
 
-      // Basic checks - remove isProcessing check to allow restart during processing
+      // Prevent multiple simultaneous initializations
+      if (initializationInProgressRef.current) {
+        console.log("Initialization already in progress, skipping...");
+        return;
+      }
+
+      // Basic checks
       if (!isActive || !isClient) {
         console.log("Skipping initialization - not active or not client");
         return;
@@ -196,42 +171,35 @@ const QrScanner = forwardRef(
         return;
       }
 
-      // Import scanner library
-      let ScannerConstructor;
+      initializationInProgressRef.current = true;
+
       try {
+        // Import scanner library
         const html5qrcode = await import("html5-qrcode");
-        ScannerConstructor = html5qrcode.Html5Qrcode;
+        const ScannerConstructor = html5qrcode.Html5Qrcode;
 
         if (!ScannerConstructor) {
           console.error("Html5Qrcode constructor not found");
           return;
         }
-      } catch (error) {
-        console.error("Error importing html5-qrcode:", error);
-        return;
-      }
 
-      // Check for reader element
-      const readerElement = document.getElementById("reader");
-      if (!readerElement) {
-        console.log("Reader element not found");
-        return;
-      }
+        // Check for reader element
+        const readerElement = document.getElementById("reader");
+        if (!readerElement) {
+          console.log("Reader element not found");
+          return;
+        }
 
-      // Clear existing scanner and DOM
-      stopScanner();
+        // Clear existing scanner and DOM
+        await stopScanner();
 
-      // Clear the DOM element completely
-      readerElement.innerHTML = "";
+        // Clear the DOM element completely
+        readerElement.innerHTML = "";
 
-      // Wait a bit for cleanup
-      await new Promise((resolve) => setTimeout(resolve, 200));
+        // Wait for cleanup to complete
+        await new Promise((resolve) => setTimeout(resolve, 300));
 
-      // Reset scanning state
-      isScanningRef.current = false;
-
-      // Create new scanner
-      try {
+        // Create new scanner
         console.log("Creating new scanner instance");
         scannerRef.current = new ScannerConstructor("reader");
 
@@ -257,36 +225,15 @@ const QrScanner = forwardRef(
         setIsInitialized(false);
         isScanningRef.current = false;
         scannerRef.current = null;
+        // Show user-friendly error message
+        showMessage(
+          "Failed to initialize camera. Please refresh the page.",
+          "error"
+        );
+      } finally {
+        initializationInProgressRef.current = false;
       }
-    }, [handleScanSuccess, isActive, isClient, stopScanner]);
-
-    // Store initializeScanner in ref for access from handleScanSuccess
-    useEffect(() => {
-      restartScannerRef.current = initializeScanner;
-    }, [initializeScanner]);
-
-    const onScanError = useCallback((error) => {
-      // Only log actual errors, not timeouts
-      if (error?.includes?.("timeout")) return;
-      console.warn(`QR Code scan error: ${error}`);
-    }, []);
-
-    const handleScan = useCallback(
-      (result) => {
-        if (result && !isInitialized) {
-          onScanSuccess(result);
-        }
-      },
-      [onScanSuccess, isInitialized]
-    );
-
-    const handleError = useCallback(
-      (error) => {
-        console.error("QR Scanner error:", error);
-        onScanError(error);
-      },
-      [onScanError]
-    );
+    }, [handleScanSuccess, isActive, isClient, stopScanner, onScanError]);
 
     // Initialize scanner when active
     useEffect(() => {
@@ -296,13 +243,13 @@ const QrScanner = forwardRef(
         isInitialized,
       });
 
-      if (isActive && isClient) {
+      if (isActive && isClient && !isInitialized) {
         // Add a small delay to ensure DOM is ready
         const timer = setTimeout(() => {
           initializeScanner();
-        }, 100);
+        }, 300);
         return () => clearTimeout(timer);
-      } else {
+      } else if (!isActive) {
         stopScanner();
       }
 
@@ -310,7 +257,15 @@ const QrScanner = forwardRef(
         console.log("Scanner cleanup running");
         stopScanner();
       };
-    }, [isActive, isClient, initializeScanner, stopScanner]);
+    }, [isActive, isClient, initializeScanner, stopScanner, isInitialized]);
+
+    // Cleanup on unmount
+    useEffect(() => {
+      return () => {
+        console.log("Component unmounting, cleaning up scanner");
+        stopScanner();
+      };
+    }, [stopScanner]);
 
     if (!isActive || !isClient) {
       console.log("Not rendering scanner - not active or not client");

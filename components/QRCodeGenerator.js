@@ -62,8 +62,10 @@ const QRCodeGenerator = ({ employee }) => {
   return (
     <div className="text-center">
       <div className="bg-white p-4 rounded-lg shadow-md inline-block">
-        <img
+        <Image
           src={qrCodeDataUrl}
+          width={30}
+          height={30}
           alt={`QR Code for ${employee.firstname} ${employee.lastname}`}
           className="mx-auto"
         />
@@ -73,8 +75,10 @@ const QRCodeGenerator = ({ employee }) => {
         <p className="text-xs text-gray-500">{employee.employee_id}</p>
       </div>
       <div className="mt-4">
-        <img
+        <Image
           src={qrCodeDataUrl}
+          width={30}
+          height={30}
           alt={`QR Code for ${employee.firstname} ${employee.lastname}`}
           className="mx-auto"
           style={{ width: "100px", height: "100px" }}

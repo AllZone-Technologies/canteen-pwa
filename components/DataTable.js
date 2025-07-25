@@ -54,7 +54,7 @@ const DataTable = ({
         size: col.size || 150,
       });
     });
-  }, [columns, sortable]);
+  }, [columns, sortable, columnHelper]);
 
   const table = useReactTable({
     data,

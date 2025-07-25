@@ -9,6 +9,7 @@ import { useDropzone } from "react-dropzone";
 import { useLoading } from "../../context/loading-context";
 import PageLoader from "../../components/PageLoader";
 import { FiEdit2, FiTrash2, FiSend } from "react-icons/fi";
+import BulkUploadModal from "../../components/BulkUploadModal";
 
 export default function Employees() {
   const [employees, setEmployees] = useState([]);
@@ -825,63 +826,13 @@ export default function Employees() {
 
         {showBulkUpload && (
           <div className={styles.modal}>
-            <div className={styles.modalContent}>
-              <h2>Bulk Upload Employees</h2>
-              <div
-                {...getRootProps()}
-                className={`${styles.dropzone} ${
-                  isDragActive ? styles.active : ""
-                }`}
-              >
-                <input {...getInputProps()} />
-                {isLoading ? (
-                  <div className={styles.loading}>Processing file...</div>
-                ) : previewData ? (
-                  <div>
-                    <p>File selected: {previewData.fileName}</p>
-                    <div className={styles.previewTable}>
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>First Name</th>
-                            <th>Last Name</th>
-                            <th>Email</th>
-                            <th>Department</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {previewData.records.map((record, index) => (
-                            <tr key={index}>
-                              <td>{record.firstname}</td>
-                              <td>{record.lastname}</td>
-                              <td>{record.email}</td>
-                              <td>{record.department}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <button
-                      onClick={handleBulkCreate}
-                      className={styles.bulkCreateButton}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? "Creating..." : "Create Employees"}
-                    </button>
-                  </div>
-                ) : (
-                  <p>
-                    Drag and drop a CSV or Excel file here, or click to select
-                  </p>
-                )}
-              </div>
-              <button
-                className={styles.closeButton}
-                onClick={() => setShowBulkUpload(false)}
-              >
-                Close
-              </button>
-            </div>
+            <BulkUploadModal
+              onClose={() => setShowBulkUpload(false)}
+              onSuccess={() => {
+                setShowBulkUpload(false);
+                fetchEmployees();
+              }}
+            />
           </div>
         )}
 

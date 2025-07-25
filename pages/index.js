@@ -26,7 +26,6 @@ export default function Home() {
   const messageTimeoutRef = useRef(null);
   const router = useRouter();
   const [isScannerActive, setIsScannerActive] = useState(true);
-  const [scannerKey, setScannerKey] = useState(0);
   const scannerRef = useRef(null);
 
   const showMessage = useCallback((msg, type) => {
@@ -65,13 +64,6 @@ export default function Home() {
       if (response.data?.isRestricted) {
         showMessage(response.data.error, "error");
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        // Restart scanner after restricted check-in
-        setTimeout(() => {
-          setScannerKey((prev) => prev + 1);
-          if (scannerRef.current && scannerRef.current.restart) {
-            scannerRef.current.restart();
-          }
-        }, 200);
         return false;
       }
 
@@ -106,40 +98,18 @@ export default function Home() {
         // Wait a bit more before showing scanner again
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
-        // Show scanner again and restart it
+        // Show scanner again - it will auto-initialize
         setIsScannerActive(true);
-
-        // Ensure scanner restarts properly
-        setTimeout(() => {
-          setScannerKey((prev) => prev + 1);
-          if (scannerRef.current && scannerRef.current.restart) {
-            scannerRef.current.restart();
-          }
-        }, 200);
 
         return true;
       }
 
       if (response.status === "queued") {
         showMessage(response.message, "info");
-        // Restart scanner after queued check-in
-        setTimeout(() => {
-          setScannerKey((prev) => prev + 1);
-          if (scannerRef.current && scannerRef.current.restart) {
-            scannerRef.current.restart();
-          }
-        }, 200);
         return true;
       }
 
       showMessage(response.data?.error || "Check-in failed", "error");
-      // Restart scanner after failed check-in
-      setTimeout(() => {
-        setScannerKey((prev) => prev + 1);
-        if (scannerRef.current && scannerRef.current.restart) {
-          scannerRef.current.restart();
-        }
-      }, 200);
       return false;
     },
     [showMessage]
@@ -160,13 +130,6 @@ export default function Home() {
       } catch (error) {
         console.error("Error in onScanSuccess:", error);
         showMessage(error.message, "error");
-        // Restart scanner after error
-        setTimeout(() => {
-          setScannerKey((prev) => prev + 1);
-          if (scannerRef.current && scannerRef.current.restart) {
-            scannerRef.current.restart();
-          }
-        }, 200);
       } finally {
         setIsProcessing(false);
       }
@@ -298,7 +261,6 @@ export default function Home() {
           <div className={styles.scannerSection}>
             <div className={styles.qrSection}>
               <QrScanner
-                key={scannerKey}
                 ref={scannerRef}
                 onScanSuccess={onScanSuccess}
                 showMessage={showMessage}

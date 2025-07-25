@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDropzone } from "react-dropzone";
 import { toast } from "react-hot-toast";
-import AdminLayout from "./layout";
+import AdminLayout from "../../components/AdminLayout";
 import styles from "../../styles/AdminBulkUpload.module.css";
 
 export default function BulkUpload({ onClose }) {

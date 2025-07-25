@@ -1,3 +1,57 @@
+/* Modal Container Styles */
+.modalContainer {
+  width: 100%;
+  max-width: 800px;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border-color);
+}
+
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+}
+
+.modalHeader h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.closeButton {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.closeButton:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.modalBody {
+  padding: 2rem;
+}
+
 /* Responsive Best Practices: Fluid, mobile-first, unified breakpoints */
 .container {
   padding: 2rem;
@@ -104,18 +158,58 @@
 
 .previewSection {
   background: var(--bg-secondary);
-  padding: 2rem;
+  padding: 1.5rem;
   border-radius: 0.5rem;
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--border-color);
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 }
 
-.previewSection h2 {
-  font-size: 1.5rem;
+.previewHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.previewHeader h3 {
+  font-size: 1.25rem;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 1rem;
+  margin: 0;
+}
+
+.previewActions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.loadingContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid var(--border-color);
+  border-top: 3px solid var(--accent-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .previewTable {
@@ -288,11 +382,29 @@
     max-width: 100vw;
     padding: 1.5rem;
   }
+
+  .modalContainer {
+    max-width: 90vw;
+    margin: 0 1rem;
+  }
 }
 
 @media (max-width: 900px) {
   .container {
     padding: 1rem;
+  }
+
+  .modalContainer {
+    max-width: 95vw;
+    margin: 0 0.5rem;
+  }
+
+  .modalHeader {
+    padding: 1rem 1.5rem;
+  }
+
+  .modalBody {
+    padding: 1.5rem;
   }
 
   .uploadSection,
@@ -312,10 +424,37 @@
   .cancelButton {
     width: 100%;
   }
+
+  .previewActions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .previewActions button {
+    width: 100%;
+  }
 }
 
 @media (max-width: 768px) {
   .container {
+    padding: 1rem;
+  }
+
+  .modalContainer {
+    max-width: 98vw;
+    margin: 0 0.25rem;
+    max-height: 90vh;
+  }
+
+  .modalHeader {
+    padding: 0.75rem 1rem;
+  }
+
+  .modalHeader h2 {
+    font-size: 1.25rem;
+  }
+
+  .modalBody {
     padding: 1rem;
   }
 
@@ -341,11 +480,36 @@
   .stats {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .previewHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
 }
 
 @media (max-width: 600px) {
   .container {
     padding: 0.5rem;
+  }
+
+  .modalContainer {
+    max-width: 100vw;
+    margin: 0;
+    max-height: 95vh;
+    border-radius: 0;
+  }
+
+  .modalHeader {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .modalHeader h2 {
+    font-size: 1.125rem;
+  }
+
+  .modalBody {
+    padding: 0.75rem;
   }
 
   .title {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import AdminLayout from "./layout";
+import AdminLayout from "../../components/AdminLayout";
 import styles from "../../styles/AdminDashboard.module.css";
 import Link from "next/link";
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import AdminLayout from "./layout";
+import AdminLayout from "../../components/AdminLayout";
 import styles from "../../styles/AdminTestEmail.module.css";
 
 export default function TestEmail() {
