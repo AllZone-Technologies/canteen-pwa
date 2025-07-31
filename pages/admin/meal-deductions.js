@@ -79,11 +79,9 @@ export default function MealDeductions() {
     }
   };
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return `${String(date.getDate()).padStart(2, "0")}.${String(
-      date.getMonth() + 1
-    ).padStart(2, "0")}.${date.getFullYear()}`;
+  const formatDate = (periodString) => {
+    // periodString is already in "21 January 2024 - 20 February 2024" format
+    return periodString;
   };
 
   return (
@@ -97,6 +95,10 @@ export default function MealDeductions() {
             QAR.
           </p>
           <p>Only employee visits are included (contractors are excluded).</p>
+          <p>
+            <strong>Note:</strong> Deductions are aggregated by period (21st to
+            20th of next month).
+          </p>
         </div>
 
         <div className={styles.controls}>

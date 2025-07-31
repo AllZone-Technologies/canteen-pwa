@@ -22,11 +22,60 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Invalid date format" });
     }
 
-    // Get meal deductions for the date range
+    // Parse dates and convert to period format (similar to above)
+    const monthNames = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
+
+    // Calculate periods that fall within the date range
+    const periods = [];
+    let currentDate = new Date(start);
+    const endDateObj = new Date(end);
+
+    while (currentDate <= endDateObj) {
+      const currentDay = currentDate.getDate();
+      const currentMonth = currentDate.getMonth();
+      const currentYear = currentDate.getFullYear();
+
+      let periodStart, periodEnd;
+
+      if (currentDay >= 21) {
+        periodStart = new Date(currentYear, currentMonth, 21);
+        periodEnd = new Date(currentYear, currentMonth + 1, 20);
+      } else {
+        periodStart = new Date(currentYear, currentMonth - 1, 21);
+        periodEnd = new Date(currentYear, currentMonth, 20);
+      }
+
+      const periodString = `${periodStart.getDate()} ${
+        monthNames[periodStart.getMonth()]
+      } ${periodStart.getFullYear()} - ${periodEnd.getDate()} ${
+        monthNames[periodEnd.getMonth()]
+      } ${periodEnd.getFullYear()}`;
+
+      if (!periods.includes(periodString)) {
+        periods.push(periodString);
+      }
+
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Get meal deductions for the periods
     const mealDeductions = await db.MealDeduction.findAll({
       where: {
         date: {
-          [db.Sequelize.Op.between]: [start, end],
+          [db.Sequelize.Op.in]: periods,
         },
       },
       include: [
@@ -46,17 +95,19 @@ export default async function handler(req, res) {
     let csvContent = "Emp#,Wage type,Amount,Date,Currency\n";
 
     mealDeductions.forEach((deduction) => {
-      // Format date as DD.MM.YYYY
-      const date = new Date(deduction.date);
-      const formattedDate = `${String(date.getDate()).padStart(
-        2,
-        "0"
-      )}.${String(date.getMonth() + 1).padStart(2, "0")}.${date.getFullYear()}`;
+      // For CSV, use the end date of the period (20th of the month)
+      const periodParts = deduction.date.split(" - ");
+      const endDatePart = periodParts[1]; // "20 February 2024"
+      const endDateParts = endDatePart.split(" ");
+      const day = endDateParts[0];
+      const month = monthNames.indexOf(endDateParts[1]) + 1;
+      const year = endDateParts[2];
+      const formattedDate = `${day}.${String(month).padStart(2, "0")}.${year}`;
 
       // Format amount to 2 decimal places
       const formattedAmount = parseFloat(deduction.amount).toFixed(2);
 
-      // Add row to CSV (no blank lines or special characters)
+      // Add row to CSV
       csvContent += `${deduction.employee_id},${deduction.wage_type},${formattedAmount},${formattedDate},${deduction.currency}\n`;
     });
 

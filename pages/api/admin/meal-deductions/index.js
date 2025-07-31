@@ -22,11 +22,61 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Invalid date format" });
     }
 
-    // Get existing meal deductions for the date range
+    // Parse dates and convert to period format
+    const monthNames = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
+
+    // Calculate periods that fall within the date range
+    const periods = [];
+    let currentDate = new Date(start);
+    const endDateObj = new Date(end);
+
+    while (currentDate <= endDateObj) {
+      const currentDay = currentDate.getDate();
+      const currentMonth = currentDate.getMonth();
+      const currentYear = currentDate.getFullYear();
+
+      let periodStart, periodEnd;
+
+      if (currentDay >= 21) {
+        periodStart = new Date(currentYear, currentMonth, 21);
+        periodEnd = new Date(currentYear, currentMonth + 1, 20);
+      } else {
+        periodStart = new Date(currentYear, currentMonth - 1, 21);
+        periodEnd = new Date(currentYear, currentMonth, 20);
+      }
+
+      const periodString = `${periodStart.getDate()} ${
+        monthNames[periodStart.getMonth()]
+      } ${periodStart.getFullYear()} - ${periodEnd.getDate()} ${
+        monthNames[periodEnd.getMonth()]
+      } ${periodEnd.getFullYear()}`;
+
+      if (!periods.includes(periodString)) {
+        periods.push(periodString);
+      }
+
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Get meal deductions for the periods
     const mealDeductions = await db.MealDeduction.findAll({
       where: {
         date: {
-          [db.Sequelize.Op.between]: [startDate, endDate],
+          [db.Sequelize.Op.in]: periods,
         },
       },
       include: [

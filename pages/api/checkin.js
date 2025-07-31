@@ -130,41 +130,72 @@ export default async function handler(req, res) {
     // Create meal deduction for employees only (not contractors)
     if (employee) {
       try {
-        const checkInDate = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
-        const mealDeductionPerVisit = 5; // 5 QAR per visit
+        // Calculate deduction period: 21st to 20th of next month
+        const checkInDate = new Date();
+        const currentDay = checkInDate.getDate();
+        const currentMonth = checkInDate.getMonth();
+        const currentYear = checkInDate.getFullYear();
 
-        // Check if meal deduction already exists for this employee and date
+        let deductionPeriodStart, deductionPeriodEnd;
+
+        if (currentDay >= 21) {
+          // If it's 21st or later, period is current month 21st to next month 20th
+          deductionPeriodStart = new Date(currentYear, currentMonth, 21);
+          deductionPeriodEnd = new Date(currentYear, currentMonth + 1, 20);
+        } else {
+          // If it's before 21st, period is previous month 21st to current month 20th
+          deductionPeriodStart = new Date(currentYear, currentMonth - 1, 21);
+          deductionPeriodEnd = new Date(currentYear, currentMonth, 20);
+        }
+
+        // Use the end date of the period (20th of the month) for the database record
+        const formatDate = (date) => {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, "0");
+          const day = String(date.getDate()).padStart(2, "0");
+          return `${year}-${month}-${day}`;
+        };
+
+        const deductionDate = formatDate(deductionPeriodEnd); // Use 20th of the month
+
+        const mealDeductionPerVisit = 5; // 5 QAR per visit
+        const mealDeductionPerGuest = 5; // 5 QAR per guest
+        const totalDeductionForThisVisit =
+          mealDeductionPerVisit + guestCount * mealDeductionPerGuest;
+
+        // Check if meal deduction already exists for this employee and period
         const existingDeduction = await db.MealDeduction.findOne({
           where: {
             employee_id: entityId,
-            date: checkInDate,
+            date: deductionDate,
           },
         });
 
         if (existingDeduction) {
           // Update existing deduction - increment visit count and amount
           const newVisitCount = existingDeduction.visit_count + 1;
-          const newAmount = newVisitCount * mealDeductionPerVisit;
+          const newAmount =
+            existingDeduction.amount + totalDeductionForThisVisit;
 
           await existingDeduction.update({
             amount: newAmount,
             visit_count: newVisitCount,
           });
           console.log(
-            `Updated meal deduction for ${entityId} on ${checkInDate}: ${newAmount} QAR (${newVisitCount} visits)`
+            `Updated meal deduction for ${entityId} for period ending ${deductionDate}: ${newAmount} QAR (${newVisitCount} visits, ${guestCount} guests this visit)`
           );
         } else {
           // Create new deduction
           await db.MealDeduction.create({
             employee_id: entityId,
             wage_type: "3020",
-            amount: mealDeductionPerVisit,
-            date: checkInDate,
+            amount: totalDeductionForThisVisit,
+            date: deductionDate,
             currency: "QAR",
             visit_count: 1,
           });
           console.log(
-            `Created meal deduction for ${entityId} on ${checkInDate}: ${mealDeductionPerVisit} QAR`
+            `Created meal deduction for ${entityId} for period ending ${deductionDate}: ${totalDeductionForThisVisit} QAR (1 visit, ${guestCount} guests)`
           );
         }
       } catch (deductionError) {

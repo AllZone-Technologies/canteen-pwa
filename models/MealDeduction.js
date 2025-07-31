@@ -24,9 +24,13 @@ module.exports = (sequelize, DataTypes) => {
         comment: "Deduction amount in QAR",
       },
       date: {
-        type: DataTypes.DATEONLY,
+        type: DataTypes.STRING, // Changed from DATEONLY to STRING
         allowNull: false,
-        comment: "Date of deduction",
+        comment:
+          "Deduction period (21st to 20th format: '21 January 2024 - 20 February 2024')",
+        validate: {
+          is: /^\d{1,2}\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\s+-\s+\d{1,2}\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}$/, // Validate period format
+        },
       },
       currency: {
         type: DataTypes.STRING,
