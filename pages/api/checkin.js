@@ -148,15 +148,38 @@ export default async function handler(req, res) {
           deductionPeriodEnd = new Date(currentYear, currentMonth, 20);
         }
 
-        // Use the end date of the period (20th of the month) for the database record
-        const formatDate = (date) => {
-          const year = date.getFullYear();
-          const month = String(date.getMonth() + 1).padStart(2, "0");
-          const day = String(date.getDate()).padStart(2, "0");
-          return `${year}-${month}-${day}`;
+        // Format the deduction period for the database record
+        const formatPeriod = (startDate, endDate) => {
+          const months = [
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+          ];
+
+          const startDay = startDate.getDate();
+          const startMonth = months[startDate.getMonth()];
+          const startYear = startDate.getFullYear();
+
+          const endDay = endDate.getDate();
+          const endMonth = months[endDate.getMonth()];
+          const endYear = endDate.getFullYear();
+
+          return `${startDay} ${startMonth} ${startYear} - ${endDay} ${endMonth} ${endYear}`;
         };
 
-        const deductionDate = formatDate(deductionPeriodEnd); // Use 20th of the month
+        const deductionPeriod = formatPeriod(
+          deductionPeriodStart,
+          deductionPeriodEnd
+        );
 
         const mealDeductionPerVisit = 5; // 5 QAR per visit
         const mealDeductionPerGuest = 5; // 5 QAR per guest
@@ -167,7 +190,7 @@ export default async function handler(req, res) {
         const existingDeduction = await db.MealDeduction.findOne({
           where: {
             employee_id: entityId,
-            date: deductionDate,
+            date: deductionPeriod,
           },
         });
 
@@ -182,7 +205,7 @@ export default async function handler(req, res) {
             visit_count: newVisitCount,
           });
           console.log(
-            `Updated meal deduction for ${entityId} for period ending ${deductionDate}: ${newAmount} QAR (${newVisitCount} visits, ${guestCount} guests this visit)`
+            `Updated meal deduction for ${entityId} for period ${deductionPeriod}: ${newAmount} QAR (${newVisitCount} visits, ${guestCount} guests this visit)`
           );
         } else {
           // Create new deduction
@@ -190,12 +213,12 @@ export default async function handler(req, res) {
             employee_id: entityId,
             wage_type: "3020",
             amount: totalDeductionForThisVisit,
-            date: deductionDate,
+            date: deductionPeriod,
             currency: "QAR",
             visit_count: 1,
           });
           console.log(
-            `Created meal deduction for ${entityId} for period ending ${deductionDate}: ${totalDeductionForThisVisit} QAR (1 visit, ${guestCount} guests)`
+            `Created meal deduction for ${entityId} for period ${deductionPeriod}: ${totalDeductionForThisVisit} QAR (1 visit, ${guestCount} guests)`
           );
         }
       } catch (deductionError) {
