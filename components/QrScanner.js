@@ -34,6 +34,7 @@ const QrScanner = forwardRef(
     const isScanningRef = useRef(false);
     const initializationInProgressRef = useRef(false);
     const cleanupInProgressRef = useRef(false);
+    const shouldRestartRef = useRef(false);
 
     // Mark as client-side on mount
     useEffect(() => {
@@ -81,8 +82,8 @@ const QrScanner = forwardRef(
           isScanningRef.current = true;
           setIsProcessing(true);
 
-          // Stop the scanner immediately to prevent multiple scans
-          await stopScanner();
+          // Don't stop the scanner immediately - let it continue running
+          // The parent component will handle hiding/showing the scanner
 
           // Check if employee is already checked in
           const response = await fetch("/api/checkin", {
@@ -114,7 +115,7 @@ const QrScanner = forwardRef(
           showMessage("An error occurred. Please try again.", "error");
         }
       },
-      [isProcessing, setIsProcessing, onScanSuccess, showMessage, stopScanner]
+      [isProcessing, setIsProcessing, onScanSuccess, showMessage]
     );
 
     // Expose methods through ref
@@ -125,6 +126,7 @@ const QrScanner = forwardRef(
       },
       restart: async () => {
         console.log("Restart method called via ref");
+        shouldRestartRef.current = true;
         await stopScanner();
 
         // Wait for cleanup to complete
@@ -133,6 +135,7 @@ const QrScanner = forwardRef(
         // Force re-initialization if active
         if (isActive && isClient) {
           console.log("Forcing scanner re-initialization");
+          shouldRestartRef.current = false;
           initializeScanner();
         }
       },
@@ -190,14 +193,15 @@ const QrScanner = forwardRef(
           return;
         }
 
-        // Clear existing scanner and DOM
-        await stopScanner();
+        // Only clear existing scanner if we're not already initialized
+        if (scannerRef.current) {
+          await stopScanner();
+          // Wait for cleanup to complete
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        }
 
         // Clear the DOM element completely
         readerElement.innerHTML = "";
-
-        // Wait for cleanup to complete
-        await new Promise((resolve) => setTimeout(resolve, 300));
 
         // Create new scanner
         console.log("Creating new scanner instance");
@@ -210,7 +214,7 @@ const QrScanner = forwardRef(
         };
 
         await scannerRef.current.start(
-          { facingMode: "environment" },
+          { facingMode: "user" },
           config,
           handleScanSuccess,
           onScanError
@@ -233,7 +237,14 @@ const QrScanner = forwardRef(
       } finally {
         initializationInProgressRef.current = false;
       }
-    }, [handleScanSuccess, isActive, isClient, stopScanner, onScanError]);
+    }, [
+      handleScanSuccess,
+      isActive,
+      isClient,
+      stopScanner,
+      onScanError,
+      showMessage,
+    ]);
 
     // Initialize scanner when active
     useEffect(() => {
@@ -243,13 +254,18 @@ const QrScanner = forwardRef(
         isInitialized,
       });
 
-      if (isActive && isClient && !isInitialized) {
+      if (
+        isActive &&
+        isClient &&
+        !isInitialized &&
+        !initializationInProgressRef.current
+      ) {
         // Add a small delay to ensure DOM is ready
         const timer = setTimeout(() => {
           initializeScanner();
         }, 300);
         return () => clearTimeout(timer);
-      } else if (!isActive) {
+      } else if (!isActive && isInitialized) {
         stopScanner();
       }
 
