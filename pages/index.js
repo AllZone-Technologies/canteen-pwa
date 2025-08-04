@@ -68,9 +68,6 @@ export default function Home() {
       }
 
       if (response.status === "success") {
-        // Hide scanner during success animation
-        setIsScannerActive(false);
-
         // Handle both employee and contractor data
         const entityData = response.data.data;
 
@@ -94,12 +91,6 @@ export default function Home() {
         // Wait for success animation to complete
         await new Promise((resolve) => setTimeout(resolve, 3000));
         setCheckedInEmployee(null);
-
-        // Wait a bit more before showing scanner again
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
-        // Show scanner again - it will auto-initialize
-        setIsScannerActive(true);
 
         return true;
       }
