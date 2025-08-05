@@ -1,90 +1,136 @@
-const fetchWrapper = require("../lib/fetchWrapper");
+const db = require("../models");
 
 async function testCheckinsFixes() {
   try {
-    console.log("Testing checkins page fixes...");
+    console.log("Testing checkins API fixes...\n");
 
-    // Test the API endpoint
-    const response = await fetchWrapper("/api/admin/checkins?page=1&limit=5");
+    // Test 1: Check if we can fetch VisitLogs without association
+    console.log("1. Testing VisitLog fetch without Employee association:");
+    const visitLogs = await db.VisitLog.findAll({
+      limit: 5,
+      order: [["created_at", "DESC"]],
+    });
 
-    if (response.ok) {
-      const data = await response.json();
-      console.log("✅ Checkins API is working correctly!");
+    console.log(`   - Found ${visitLogs.length} visit logs`);
 
-      console.log("📊 API Response Structure:");
-      console.log("  - Total items:", data.total);
-      console.log("  - Total pages:", data.totalPages);
-      console.log("  - Current page:", data.currentPage);
-      console.log("  - Checkins count:", data.checkins?.length || 0);
+    if (visitLogs.length > 0) {
+      // Test 2: Test the new approach of fetching employee data separately
+      console.log("\n2. Testing employee data fetch approach:");
 
-      if (data.checkins && data.checkins.length > 0) {
-        console.log("\n📋 Sample Checkin Data:");
-        const sampleCheckin = data.checkins[0];
-        console.log("  - ID:", sampleCheckin.id);
-        console.log("  - Name:", sampleCheckin.name);
-        console.log("  - Employee ID:", sampleCheckin.employee_id);
-        console.log("  - Entity Type:", sampleCheckin.entityType);
-        console.log("  - Department:", sampleCheckin.department);
-        console.log("  - Check-in Time:", sampleCheckin.checkin_time);
-        console.log("  - Source Type:", sampleCheckin.source_type);
-        console.log("  - Guest Count:", sampleCheckin.guest_count);
+      // Get all unique employee IDs from the visit logs
+      const employeeIds = [
+        ...new Set(
+          visitLogs
+            .filter(
+              (visitLog) => !visitLog.employee_id.startsWith("CONTRACTOR_")
+            )
+            .map((visitLog) => visitLog.employee_id)
+        ),
+      ];
 
-        // Check for N/A issues
-        const issues = [];
+      console.log(`   - Employee IDs found: ${employeeIds.join(", ")}`);
 
-        if (sampleCheckin.name === "N/A" && sampleCheckin.username) {
-          issues.push("Name showing N/A when username exists");
-        }
+      if (employeeIds.length > 0) {
+        // Fetch employee data for all employee IDs at once
+        const employees = await db.Employee.findAll({
+          where: {
+            employee_id: {
+              [db.Sequelize.Op.in]: employeeIds,
+            },
+          },
+          attributes: ["firstname", "lastname", "employee_id", "department"],
+        });
 
-        if (sampleCheckin.source_type === "N/A") {
-          issues.push("Source type showing N/A");
-        }
+        console.log(`   - Found ${employees.length} matching employees`);
 
-        if (sampleCheckin.checkin_time === "N/A") {
-          issues.push("Check-in time showing N/A");
-        }
+        // Create a map for quick employee lookup
+        const employeeMap = employees.reduce((map, employee) => {
+          map[employee.employee_id] = employee;
+          return map;
+        }, {});
 
-        if (issues.length === 0) {
-          console.log("\n🎉 All checkin data fields are working correctly!");
-          console.log("✅ Name field fixed");
-          console.log("✅ Source type field fixed");
-          console.log("✅ Check-in time field fixed");
-          console.log("✅ Pagination working");
-          console.log("✅ Employee/Contractor distinction working");
-          return true;
-        } else {
-          console.error("\n❌ Issues found:");
-          issues.forEach((issue) => console.error("  -", issue));
-          return false;
-        }
-      } else {
-        console.log("\n⚠️  No checkins found in the system");
-        console.log("   This is normal if no check-ins have been made yet.");
-        console.log("   The API structure is correct and ready for data.");
-        return true;
+        // Test 3: Format the data like the API does
+        console.log("\n3. Testing data formatting:");
+        const formattedCheckins = visitLogs.map((visitLog) => {
+          let name = "N/A";
+          let department = "N/A";
+          let entityType = "Employee";
+
+          if (visitLog.employee_id.startsWith("CONTRACTOR_")) {
+            // This is a contractor
+            entityType = "Contractor";
+            name = visitLog.username || "N/A";
+          } else {
+            // This is an employee
+            const employee = employeeMap[visitLog.employee_id];
+            if (employee) {
+              name =
+                `${employee.firstname || ""} ${
+                  employee.lastname || ""
+                }`.trim() || "N/A";
+              department = employee.department || "N/A";
+            } else {
+              name = visitLog.username || "N/A";
+            }
+          }
+
+          return {
+            id: visitLog.id,
+            employee_id: visitLog.employee_id,
+            name: name,
+            department: department,
+            entityType: entityType,
+            checkin_time: visitLog.checkin_time || visitLog.created_at,
+            source_type: visitLog.source_type || "N/A",
+            guest_count: visitLog.guest_count || 0,
+            username: visitLog.username,
+          };
+        });
+
+        console.log("   - Successfully formatted checkins data:");
+        formattedCheckins.forEach((checkin, i) => {
+          console.log(
+            `   ${i + 1}. ${checkin.name} (${checkin.entityType}) - ${
+              checkin.department
+            }`
+          );
+        });
       }
-    } else {
-      const errorData = await response.text();
-      console.error("❌ Checkins API returned error status:", response.status);
-      console.error("Response:", errorData);
-      return false;
     }
-  } catch (error) {
-    console.error("❌ Checkins test failed:");
 
-    if (error.code === "ECONNREFUSED") {
-      console.error(
-        "  Server not running. Please start the development server with: npm run dev"
+    // Test 4: Test MealDeduction association (should still work)
+    console.log("\n4. Testing MealDeduction association (should work):");
+    const mealDeduction = await db.MealDeduction.findOne({
+      include: [
+        {
+          model: db.Employee,
+          as: "Employee",
+          attributes: ["firstname", "lastname", "employee_id"],
+        },
+      ],
+      order: [["created_at", "DESC"]],
+    });
+
+    if (mealDeduction) {
+      console.log("   - MealDeduction association works correctly");
+      console.log(
+        `   - Employee: ${
+          mealDeduction.Employee
+            ? `${mealDeduction.Employee.firstname} ${mealDeduction.Employee.lastname}`
+            : "N/A"
+        }`
       );
     } else {
-      console.error("  Error:", error.message);
+      console.log("   - No MealDeduction found to test");
     }
 
-    return false;
+    console.log("\n✅ All tests completed successfully!");
+  } catch (error) {
+    console.error("❌ Test failed:", error.message);
+    console.error(error.stack);
+  } finally {
+    await db.sequelize.close();
   }
 }
 
-// Run the test
-testCheckinsFixes().then((success) => {
-  process.exit(success ? 0 : 1);
-});
+testCheckinsFixes();

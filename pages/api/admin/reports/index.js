@@ -26,31 +26,22 @@ export default async function handler(req, res) {
       },
     };
 
-    // Create where clause for the Employee include
-    const employeeWhereClause = {};
-
-    // Add department filter if specified and not 'all'
-    if (department && department !== "all") {
-      employeeWhereClause.department = department;
-    }
-
-    // Add entityType filter
-    let entityTypeFilter = null;
+    // Add entityType filter to where clause
     if (entityType === "employee") {
-      entityTypeFilter = "employee";
+      whereClause.employee_id = {
+        [db.Sequelize.Op.notLike]: "CONTRACTOR_%"
+      };
     } else if (entityType === "contractor") {
-      entityTypeFilter = "contractor";
+      whereClause.employee_id = {
+        [db.Sequelize.Op.like]: "CONTRACTOR_%"
+      };
     }
 
     let reportData;
 
     // Only support daily report
     if (reportType === "daily") {
-      reportData = await generateDailyReport(
-        whereClause,
-        employeeWhereClause,
-        entityTypeFilter
-      );
+      reportData = await generateDailyReport(whereClause, department);
     } else {
       return res.status(400).json({ message: "Invalid report type" });
     }
@@ -62,32 +53,44 @@ export default async function handler(req, res) {
   }
 }
 
-async function generateDailyReport(
-  whereClause,
-  employeeWhereClause,
-  entityTypeFilter
-) {
+async function generateDailyReport(whereClause, department) {
   const visits = await db.VisitLog.findAll({
     where: whereClause,
-    include: [
-      {
-        model: db.Employee,
-        attributes: ["firstname", "lastname", "employee_id", "department"],
-        where: employeeWhereClause,
-      },
-    ],
     order: [["checkin_time", "DESC"]],
   });
 
-  // Filter by entityType if needed
-  const filteredVisits = entityTypeFilter
-    ? visits.filter((visit) => {
-        if (entityTypeFilter === "employee") {
-          return !visit.employee_id.startsWith("CONTRACTOR_");
-        } else if (entityTypeFilter === "contractor") {
-          return visit.employee_id.startsWith("CONTRACTOR_");
+  // Get all unique employee IDs from the visits
+  const employeeIds = [...new Set(
+    visits
+      .filter(visit => !visit.employee_id.startsWith("CONTRACTOR_"))
+      .map(visit => visit.employee_id)
+  )];
+
+  // Fetch employee data for all employee IDs at once
+  const employees = await db.Employee.findAll({
+    where: {
+      employee_id: {
+        [db.Sequelize.Op.in]: employeeIds
+      },
+      ...(department && department !== "all" ? { department } : {})
+    },
+    attributes: ["firstname", "lastname", "employee_id", "department"],
+  });
+
+  // Create a map for quick employee lookup
+  const employeeMap = employees.reduce((map, employee) => {
+    map[employee.employee_id] = employee;
+    return map;
+  }, {});
+
+  // Filter visits based on department if specified
+  const filteredVisits = department && department !== "all" 
+    ? visits.filter(visit => {
+        if (visit.employee_id.startsWith("CONTRACTOR_")) {
+          return false; // Contractors don't have departments
         }
-        return true;
+        const employee = employeeMap[visit.employee_id];
+        return employee && employee.department === department;
       })
     : visits;
 
@@ -114,48 +117,110 @@ async function generateDailyReport(
       "Check-in Time",
       "Guests",
     ],
-    data: filteredVisits.map((visit) => ({
-      Date: new Date(visit.checkin_time).toLocaleDateString(),
-      "Employee ID": visit.Employee.employee_id,
-      Name: `${visit.Employee.firstname} ${visit.Employee.lastname}`,
-      Department: visit.Employee.department,
-      "Check-in Time": new Date(visit.checkin_time).toLocaleTimeString(),
-      Guests: visit.guest_count || 0,
-    })),
+    data: filteredVisits.map((visit) => {
+      let name = "N/A";
+      let employeeDepartment = "N/A";
+      let employeeId = visit.employee_id;
+
+      if (visit.employee_id.startsWith("CONTRACTOR_")) {
+        // This is a contractor
+        name = visit.username || "N/A";
+        employeeId = visit.employee_id;
+      } else {
+        // This is an employee
+        const employee = employeeMap[visit.employee_id];
+        if (employee) {
+          name = `${employee.firstname} ${employee.lastname}`;
+          employeeDepartment = employee.department || "N/A";
+          employeeId = employee.employee_id;
+        } else {
+          name = visit.username || "N/A";
+        }
+      }
+
+      return {
+        Date: new Date(visit.checkin_time).toLocaleDateString(),
+        "Employee ID": employeeId,
+        Name: name,
+        Department: employeeDepartment,
+        "Check-in Time": new Date(visit.checkin_time).toLocaleTimeString(),
+        Guests: visit.guest_count || 0,
+      };
+    }),
     summary: {
       totalGuests,
       employeeCheckins,
       contractorCheckins,
       totalVisits: filteredVisits.length,
       uniqueEmployees: new Set(
-        filteredVisits.map((v) => v.Employee.employee_id)
+        filteredVisits
+          .filter(v => !v.employee_id.startsWith("CONTRACTOR_"))
+          .map(v => v.employee_id)
       ).size,
     },
   };
 }
 
-async function generateTopVisitorsReport(whereClause, employeeWhereClause) {
+async function generateTopVisitorsReport(whereClause, department) {
   const visits = await db.VisitLog.findAll({
     where: whereClause,
-    include: [
-      {
-        model: db.Employee,
-        attributes: ["firstname", "lastname", "employee_id", "department"],
-        where: employeeWhereClause,
-      },
-    ],
   });
+
+  // Get all unique employee IDs from the visits
+  const employeeIds = [...new Set(
+    visits
+      .filter(visit => !visit.employee_id.startsWith("CONTRACTOR_"))
+      .map(visit => visit.employee_id)
+  )];
+
+  // Fetch employee data for all employee IDs at once
+  const employees = await db.Employee.findAll({
+    where: {
+      employee_id: {
+        [db.Sequelize.Op.in]: employeeIds
+      },
+      ...(department && department !== "all" ? { department } : {})
+    },
+    attributes: ["firstname", "lastname", "employee_id", "department"],
+  });
+
+  // Create a map for quick employee lookup
+  const employeeMap = employees.reduce((map, employee) => {
+    map[employee.employee_id] = employee;
+    return map;
+  }, {});
 
   // Count visits per employee
   const employeeVisits = visits.reduce((acc, visit) => {
-    const key = visit.Employee.employee_id;
-    if (!acc[key]) {
-      acc[key] = {
-        count: 0,
-        employee: visit.Employee,
-      };
+    if (visit.employee_id.startsWith("CONTRACTOR_")) {
+      // Handle contractors
+      const key = visit.employee_id;
+      if (!acc[key]) {
+        acc[key] = {
+          count: 0,
+          employee: {
+            employee_id: visit.employee_id,
+            firstname: visit.username || "Contractor",
+            lastname: "",
+            department: "N/A"
+          },
+        };
+      }
+      acc[key].count++;
+    } else {
+      // Handle employees
+      const employee = employeeMap[visit.employee_id];
+      if (employee) {
+        const key = employee.employee_id;
+        if (!acc[key]) {
+          acc[key] = {
+            count: 0,
+            employee: employee,
+          };
+        }
+        acc[key].count++;
+      }
     }
-    acc[key].count++;
     return acc;
   }, {});
 

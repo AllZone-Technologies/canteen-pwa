@@ -36,51 +36,97 @@ async function debugDatabaseRelations() {
       );
     });
 
-    // Test the association
-    console.log("\n3. Testing VisitLog with Employee association:");
-    const visitLogWithEmployee = await db.VisitLog.findOne({
+    // Test the new approach without association
+    console.log("\n3. Testing VisitLog data fetching without association:");
+    const visitLogsForTest = await db.VisitLog.findAll({
+      limit: 3,
+      order: [["created_at", "DESC"]],
+    });
+
+    if (visitLogsForTest.length > 0) {
+      console.log("   - Found VisitLogs without association!");
+      
+      // Get all unique employee IDs from the visit logs
+      const employeeIds = [...new Set(
+        visitLogsForTest
+          .filter(visitLog => !visitLog.employee_id.startsWith("CONTRACTOR_"))
+          .map(visitLog => visitLog.employee_id)
+      )];
+
+      console.log(`   - Employee IDs found: ${employeeIds.join(", ")}`);
+
+      if (employeeIds.length > 0) {
+        // Fetch employee data for all employee IDs at once
+        const employeesForTest = await db.Employee.findAll({
+          where: {
+            employee_id: {
+              [db.Sequelize.Op.in]: employeeIds
+            }
+          },
+          attributes: ["firstname", "lastname", "employee_id", "department"],
+        });
+
+        console.log(`   - Found ${employeesForTest.length} matching employees`);
+
+        // Create a map for quick employee lookup
+        const employeeMap = employeesForTest.reduce((map, employee) => {
+          map[employee.employee_id] = employee;
+          return map;
+        }, {});
+
+        visitLogsForTest.forEach((visitLog, i) => {
+          console.log(`   ${i + 1}. VisitLog ID: ${visitLog.id}`);
+          console.log(`      - Employee ID: "${visitLog.employee_id}"`);
+          console.log(`      - Username: "${visitLog.username}"`);
+          
+          if (visitLog.employee_id.startsWith("CONTRACTOR_")) {
+            console.log(`      - Type: Contractor`);
+            console.log(`      - Name: ${visitLog.username || "N/A"}`);
+          } else {
+            const employee = employeeMap[visitLog.employee_id];
+            if (employee) {
+              console.log(`      - Type: Employee`);
+              console.log(`      - Name: ${employee.firstname} ${employee.lastname}`);
+              console.log(`      - Department: ${employee.department || "N/A"}`);
+            } else {
+              console.log(`      - Type: Employee (not found in database)`);
+              console.log(`      - Name: ${visitLog.username || "N/A"}`);
+            }
+          }
+        });
+      }
+    } else {
+      console.log("   - No VisitLogs found");
+    }
+
+    // Test MealDeduction association (this should still work)
+    console.log("\n4. Testing MealDeduction with Employee association:");
+    const mealDeductionWithEmployee = await db.MealDeduction.findOne({
       include: [
         {
           model: db.Employee,
-          attributes: [
-            "firstname",
-            "lastname",
-            "employee_id",
-            "department",
-            "nationality",
-          ],
+          as: "Employee",
+          attributes: ["firstname", "lastname", "employee_id"],
         },
       ],
       order: [["created_at", "DESC"]],
     });
 
-    if (visitLogWithEmployee) {
-      console.log("   - Found VisitLog with Employee association!");
-      console.log(`   - VisitLog ID: ${visitLogWithEmployee.id}`);
-      console.log(`   - Employee ID: "${visitLogWithEmployee.employee_id}"`);
+    if (mealDeductionWithEmployee) {
+      console.log("   - Found MealDeduction with Employee association!");
+      console.log(`   - MealDeduction ID: ${mealDeductionWithEmployee.id}`);
+      console.log(`   - Employee ID: "${mealDeductionWithEmployee.employee_id}"`);
       console.log(
         `   - Employee: ${
-          visitLogWithEmployee.Employee
-            ? `${visitLogWithEmployee.Employee.firstname} ${visitLogWithEmployee.Employee.lastname}`
+          mealDeductionWithEmployee.Employee
+            ? `${mealDeductionWithEmployee.Employee.firstname} ${mealDeductionWithEmployee.Employee.lastname}`
             : "N/A"
         }`
       );
     } else {
-      console.log("   - No VisitLog with Employee association found");
+      console.log("   - No MealDeduction with Employee association found");
     }
 
-    // Test without association
-    console.log("\n4. Testing VisitLog without association:");
-    const visitLogWithoutEmployee = await db.VisitLog.findOne({
-      order: [["created_at", "DESC"]],
-    });
-
-    if (visitLogWithoutEmployee) {
-      console.log("   - Found VisitLog without association!");
-      console.log(`   - VisitLog ID: ${visitLogWithoutEmployee.id}`);
-      console.log(`   - Employee ID: "${visitLogWithoutEmployee.employee_id}"`);
-      console.log(`   - Username: "${visitLogWithoutEmployee.username}"`);
-    }
   } catch (error) {
     console.error("Debug failed:", error.message);
     console.error(error.stack);

@@ -20,23 +20,33 @@ export default async function handler(req, res) {
 
     const checkins = await db.VisitLog.findAndCountAll({
       where: whereClause,
-      include: [
-        {
-          model: db.Employee,
-          as: "Employee",
-          attributes: [
-            "firstname",
-            "lastname",
-            "employee_id",
-            "department",
-            "nationality",
-          ],
-        },
-      ],
       order: [["created_at", "DESC"]],
       limit: parseInt(limit),
       offset: parseInt(offset),
     });
+
+    // Get all unique employee IDs from the checkins
+    const employeeIds = [...new Set(
+      checkins.rows
+        .filter(visitLog => !visitLog.employee_id.startsWith("CONTRACTOR_"))
+        .map(visitLog => visitLog.employee_id)
+    )];
+
+    // Fetch employee data for all employee IDs at once
+    const employees = await db.Employee.findAll({
+      where: {
+        employee_id: {
+          [db.Sequelize.Op.in]: employeeIds
+        }
+      },
+      attributes: ["firstname", "lastname", "employee_id", "department", "nationality"],
+    });
+
+    // Create a map for quick employee lookup
+    const employeeMap = employees.reduce((map, employee) => {
+      map[employee.employee_id] = employee;
+      return map;
+    }, {});
 
     const formattedCheckins = checkins.rows.map((visitLog) => {
       // Handle both employees and contractors
@@ -51,12 +61,13 @@ export default async function handler(req, res) {
         // For contractors, we don't have department in the current structure
       } else {
         // This is an employee
-        if (visitLog.Employee) {
+        const employee = employeeMap[visitLog.employee_id];
+        if (employee) {
           name =
-            `${visitLog.Employee.firstname || ""} ${
-              visitLog.Employee.lastname || ""
+            `${employee.firstname || ""} ${
+              employee.lastname || ""
             }`.trim() || "N/A";
-          department = visitLog.Employee.department || "N/A";
+          department = employee.department || "N/A";
         } else {
           name = visitLog.username || "N/A";
         }

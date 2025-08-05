@@ -7,27 +7,71 @@ export default async function handler(req, res) {
 
   try {
     const checkins = await db.VisitLog.findAll({
-      include: [
-        {
-          model: db.Employee,
-          as: "Employee",
-          attributes: ["firstname", "lastname", "department", "nationality"],
-        },
-      ],
       order: [["created_at", "DESC"]],
     });
 
-    const csvData = checkins.map((checkin) => ({
-      "Employee ID": checkin.employee_id,
-      "Employee Name":
-        `${checkin.Employee?.firstname || ""} ${
-          checkin.Employee?.lastname || ""
-        }`.trim() || "N/A",
-      Department: checkin.Employee?.department || "N/A",
-      Nationality: checkin.Employee?.nationality || "N/A",
-      "Check-in Time": checkin.created_at,
-      Username: checkin.username || "N/A",
-    }));
+    // Get all unique employee IDs from the checkins
+    const employeeIds = [
+      ...new Set(
+        checkins
+          .filter((visitLog) => !visitLog.employee_id.startsWith("CONTRACTOR_"))
+          .map((visitLog) => visitLog.employee_id)
+      ),
+    ];
+
+    // Fetch employee data for all employee IDs at once
+    const employees = await db.Employee.findAll({
+      where: {
+        employee_id: {
+          [db.Sequelize.Op.in]: employeeIds,
+        },
+      },
+      attributes: [
+        "firstname",
+        "lastname",
+        "employee_id",
+        "department",
+        "nationality",
+      ],
+    });
+
+    // Create a map for quick employee lookup
+    const employeeMap = employees.reduce((map, employee) => {
+      map[employee.employee_id] = employee;
+      return map;
+    }, {});
+
+    const csvData = checkins.map((checkin) => {
+      let employeeName = "N/A";
+      let department = "N/A";
+      let nationality = "N/A";
+
+      if (checkin.employee_id.startsWith("CONTRACTOR_")) {
+        // This is a contractor
+        employeeName = checkin.username || "N/A";
+      } else {
+        // This is an employee
+        const employee = employeeMap[checkin.employee_id];
+        if (employee) {
+          employeeName =
+            `${employee.firstname || ""} ${employee.lastname || ""}`.trim() ||
+            "N/A";
+          department = employee.department || "N/A";
+          nationality = employee.nationality || "N/A";
+        } else {
+          employeeName = checkin.username || "N/A";
+        }
+      }
+
+      return {
+        "Employee ID": checkin.employee_id,
+        "Employee Name": employeeName,
+        Department: department,
+        Nationality: nationality,
+        "Check-in Time": checkin.created_at,
+        Username: checkin.username || "N/A",
+      };
+    });
 
     // Set headers for CSV download
     res.setHeader("Content-Type", "text/csv");
