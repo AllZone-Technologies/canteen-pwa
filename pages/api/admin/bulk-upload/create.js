@@ -96,14 +96,31 @@ export default async function handler(req, res) {
     for (const record of transformedRecords) {
       try {
         // Check if employee_id already exists
-        const existingEmployee = await db.Employee.findOne({
+        const existingEmployeeById = await db.Employee.findOne({
           where: { employee_id: record.employee_id },
         });
 
-        if (existingEmployee) {
+        if (existingEmployeeById) {
           results.errors.push({
+            row: transformedRecords.indexOf(record) + 1,
             employee_id: record.employee_id,
-            error: "Employee ID already exists",
+            email: record.email,
+            error: "Employee ID already exists in the system",
+          });
+          continue;
+        }
+
+        // Check if email already exists
+        const existingEmployeeByEmail = await db.Employee.findOne({
+          where: { email: record.email },
+        });
+
+        if (existingEmployeeByEmail) {
+          results.errors.push({
+            row: transformedRecords.indexOf(record) + 1,
+            employee_id: record.employee_id,
+            email: record.email,
+            error: "Email address already exists in the system",
           });
           continue;
         }
@@ -142,9 +159,27 @@ export default async function handler(req, res) {
           nationality: employee.nationality,
         });
       } catch (error) {
+        // Handle database constraint errors gracefully
+        let errorMessage = error.message;
+        
+        if (error.name === 'SequelizeUniqueConstraintError') {
+          const field = error.errors?.[0]?.path;
+          if (field === 'employee_id') {
+            errorMessage = "Employee ID already exists in the system";
+          } else if (field === 'email') {
+            errorMessage = "Email address already exists in the system";
+          } else {
+            errorMessage = `Duplicate value for field: ${field}`;
+          }
+        } else if (error.name === 'SequelizeValidationError') {
+          errorMessage = error.errors?.[0]?.message || "Validation error";
+        }
+
         results.errors.push({
+          row: transformedRecords.indexOf(record) + 1,
           employee_id: record.employee_id,
-          error: error.message,
+          email: record.email,
+          error: errorMessage,
         });
       }
     }

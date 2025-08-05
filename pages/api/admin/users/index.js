@@ -132,30 +132,32 @@ export default async function handler(req, res) {
     }
 
     try {
-      // Check if employee_id or email already exists
-      const existingEmployee = await db.Employee.findOne({
-        where: {
-          [db.Sequelize.Op.or]: [
-            { employee_id: employee_id },
-            { email: email },
-          ],
-        },
+      // Check if employee_id already exists
+      const existingEmployeeById = await db.Employee.findOne({
+        where: { employee_id: employee_id },
       });
 
-      if (existingEmployee) {
-        console.log("Employee already exists:", {
-          existingEmployee,
-          newEmployee: { employee_id, email },
-        });
+      if (existingEmployeeById) {
+        console.log("Employee ID already exists:", employee_id);
         return res.status(409).json({
-          message: "Employee already exists",
+          message: "Employee ID already exists in the system",
           details: {
-            employee_id:
-              existingEmployee.employee_id === employee_id
-                ? "Employee ID already exists"
-                : null,
-            email:
-              existingEmployee.email === email ? "Email already exists" : null,
+            employee_id: "Employee ID already exists in the system",
+          },
+        });
+      }
+
+      // Check if email already exists
+      const existingEmployeeByEmail = await db.Employee.findOne({
+        where: { email: email },
+      });
+
+      if (existingEmployeeByEmail) {
+        console.log("Email already exists:", email);
+        return res.status(409).json({
+          message: "Email address already exists in the system",
+          details: {
+            email: "Email address already exists in the system",
           },
         });
       }
@@ -214,16 +216,23 @@ export default async function handler(req, res) {
     } catch (error) {
       console.error("Error creating employee:", error);
       if (error.name === "SequelizeUniqueConstraintError") {
+        const field = error.errors?.[0]?.path;
+        let message = "A record with this information already exists";
+        let details = {};
+
+        if (field === "employee_id") {
+          message = "Employee ID already exists in the system";
+          details.employee_id = "Employee ID already exists in the system";
+        } else if (field === "email") {
+          message = "Email address already exists in the system";
+          details.email = "Email address already exists in the system";
+        } else {
+          details[field] = `This ${field} already exists in the system`;
+        }
+
         return res.status(409).json({
-          message: "Unique constraint violation",
-          details: {
-            employee_id: error.errors?.some((e) => e.path === "employee_id")
-              ? "Employee ID already exists"
-              : null,
-            email: error.errors?.some((e) => e.path === "email")
-              ? "Email already exists"
-              : null,
-          },
+          message: message,
+          details: details,
         });
       }
       if (error.name === "SequelizeValidationError") {

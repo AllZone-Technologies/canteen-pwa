@@ -11,6 +11,19 @@ import PageLoader from "../../components/PageLoader";
 import { FiEdit2, FiTrash2, FiSend } from "react-icons/fi";
 import BulkUploadModal from "../../components/BulkUploadModal";
 
+// Debounce utility function
+const debounce = (func, wait) => {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+};
+
 export default function Employees() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -184,6 +197,65 @@ export default function Employees() {
     }
   };
 
+  // Check for existing employee ID or email
+  const checkExisting = async (field, value) => {
+    if (!value || value.trim() === "") return;
+
+    try {
+      const response = await fetch(
+        `/api/admin/users/check-existing?field=${field}&value=${encodeURIComponent(
+          value.trim()
+        )}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        if (data.exists) {
+          setFormErrors((prev) => ({
+            ...prev,
+            [field === "employee_id" ? "employeeId" : field]: `${
+              field === "employee_id" ? "Employee ID" : "Email"
+            } already exists in the system`,
+          }));
+        }
+      }
+    } catch (error) {
+      console.error("Error checking existing:", error);
+    }
+  };
+
+  // Debounced check for existing values
+  const debouncedCheck = useCallback(
+    debounce((field, value) => {
+      checkExisting(field, value);
+    }, 500),
+    []
+  );
+
+  const handleInputChangeWithValidation = (e) => {
+    const { name, value } = e.target;
+
+    // Update form data
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+
+    // Clear error when user starts typing
+    if (formErrors[name]) {
+      setFormErrors((prev) => ({
+        ...prev,
+        [name]: "",
+      }));
+    }
+
+    // Check for existing values for employee ID and email
+    if (name === "employeeId" && value.trim()) {
+      debouncedCheck("employee_id", value);
+    } else if (name === "email" && value.trim()) {
+      debouncedCheck("email", value);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -237,7 +309,10 @@ export default function Employees() {
             }
           });
           setFormErrors(newErrors);
-          throw new Error(data.message);
+
+          // Show a more user-friendly error message
+          const errorMessage = data.message || "Failed to save employee";
+          throw new Error(errorMessage);
         }
 
         throw new Error(data.message || "Failed to save employee");
@@ -271,7 +346,22 @@ export default function Employees() {
       );
     } catch (err) {
       console.error("Error saving employee:", err);
-      toast.error(err.message, { id: toastId });
+
+      // Handle specific error types gracefully
+      let errorMessage = err.message;
+
+      if (err.message.includes("Employee ID already exists")) {
+        errorMessage =
+          "This Employee ID is already in use. Please choose a different one.";
+      } else if (err.message.includes("Email address already exists")) {
+        errorMessage =
+          "This email address is already registered. Please use a different email.";
+      } else if (err.message.includes("Failed to save employee")) {
+        errorMessage =
+          "Unable to save employee. Please check your information and try again.";
+      }
+
+      toast.error(errorMessage, { id: toastId });
     } finally {
       setIsAddingUser(false);
     }
@@ -689,7 +779,7 @@ export default function Employees() {
                     id="firstname"
                     name="firstname"
                     value={formData.firstname}
-                    onChange={handleInputChange}
+                    onChange={handleInputChangeWithValidation}
                     className={`${styles.formInput} ${
                       formErrors.firstname ? styles.inputError : ""
                     }`}
@@ -708,7 +798,7 @@ export default function Employees() {
                     id="lastname"
                     name="lastname"
                     value={formData.lastname}
-                    onChange={handleInputChange}
+                    onChange={handleInputChangeWithValidation}
                     className={`${styles.formInput} ${
                       formErrors.lastname ? styles.inputError : ""
                     }`}
@@ -727,7 +817,7 @@ export default function Employees() {
                     id="email"
                     name="email"
                     value={formData.email}
-                    onChange={handleInputChange}
+                    onChange={handleInputChangeWithValidation}
                     className={`${styles.formInput} ${
                       formErrors.email ? styles.inputError : ""
                     }`}
@@ -746,7 +836,7 @@ export default function Employees() {
                     id="employeeId"
                     name="employeeId"
                     value={formData.employeeId}
-                    onChange={handleInputChange}
+                    onChange={handleInputChangeWithValidation}
                     className={`${styles.formInput} ${
                       formErrors.employeeId ? styles.inputError : ""
                     } ${showEditModal ? styles.readOnlyInput : ""}`}
@@ -765,7 +855,7 @@ export default function Employees() {
                     id="department"
                     name="department"
                     value={formData.department}
-                    onChange={handleInputChange}
+                    onChange={handleInputChangeWithValidation}
                     className={`${styles.formSelect} ${
                       formErrors.department ? styles.inputError : ""
                     }`}

@@ -29,6 +29,8 @@ export default function Contractors() {
   const [formErrors, setFormErrors] = useState({
     company_name: "",
     contact_email: "",
+    contact_person: "",
+    contact_phone: "",
   });
   const { isLoading, setIsLoading } = useLoading();
 
@@ -75,12 +77,50 @@ export default function Contractors() {
       errors.contact_email = "Please enter a valid email address";
       isValid = false;
     }
+    if (
+      formData.contact_person &&
+      !/^[a-zA-Z\s]+$/.test(formData.contact_person)
+    ) {
+      errors.contact_person =
+        "Contact person name should only contain letters and spaces";
+      isValid = false;
+    }
+    if (formData.contact_phone && !/^\d+$/.test(formData.contact_phone)) {
+      errors.contact_phone = "Phone number should only contain numbers";
+      isValid = false;
+    }
     setFormErrors(errors);
     return isValid;
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+
+    // Real-time validation for contact person (alphabets only)
+    if (name === "contact_person") {
+      const alphabetsOnly = /^[a-zA-Z\s]*$/;
+      if (!alphabetsOnly.test(value)) {
+        setFormErrors((prev) => ({
+          ...prev,
+          contact_person:
+            "Contact person name should only contain letters and spaces",
+        }));
+        return;
+      }
+    }
+
+    // Real-time validation for phone number (numbers only)
+    if (name === "contact_phone") {
+      const numbersOnly = /^\d*$/;
+      if (!numbersOnly.test(value)) {
+        setFormErrors((prev) => ({
+          ...prev,
+          contact_phone: "Phone number should only contain numbers",
+        }));
+        return;
+      }
+    }
+
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (formErrors[name]) {
       setFormErrors((prev) => ({ ...prev, [name]: "" }));
@@ -375,9 +415,16 @@ export default function Contractors() {
                     name="contact_person"
                     value={formData.contact_person}
                     onChange={handleInputChange}
-                    className={styles.formInput}
+                    className={`${styles.formInput} ${
+                      formErrors.contact_person ? styles.inputError : ""
+                    }`}
                     placeholder="Enter contact person"
                   />
+                  {formErrors.contact_person && (
+                    <span className={styles.errorMessage}>
+                      {formErrors.contact_person}
+                    </span>
+                  )}
                 </div>
                 <div className={styles.formGroup}>
                   <label htmlFor="contact_email">Email</label>
@@ -406,9 +453,16 @@ export default function Contractors() {
                     name="contact_phone"
                     value={formData.contact_phone}
                     onChange={handleInputChange}
-                    className={styles.formInput}
+                    className={`${styles.formInput} ${
+                      formErrors.contact_phone ? styles.inputError : ""
+                    }`}
                     placeholder="Enter phone number"
                   />
+                  {formErrors.contact_phone && (
+                    <span className={styles.errorMessage}>
+                      {formErrors.contact_phone}
+                    </span>
+                  )}
                 </div>
                 <div className={styles.formGroup}>
                   <label htmlFor="notes">Notes</label>
