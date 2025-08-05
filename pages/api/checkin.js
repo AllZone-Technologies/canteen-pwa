@@ -46,7 +46,7 @@ export default async function handler(req, res) {
     } else if (employeeId) {
       // Find employee by ID (for manual check-in)
       employee = await db.Employee.findOne({
-        where: { employee_id: employeeId },
+        where: { employee_id: String(employeeId) },
       });
       checkInEntity = employee;
     } else if (contractorId) {
@@ -71,15 +71,15 @@ export default async function handler(req, res) {
       ? `${employee.firstname} ${employee.lastname}`
       : contractor.company_name;
 
-    // Check if entity has checked in within the last hour
-    const oneHourAgo = new Date();
-    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+    // Check if entity has checked in within the last minute
+    const oneMinuteAgo = new Date();
+    oneMinuteAgo.setMinutes(oneMinuteAgo.getMinutes() - 1);
 
     const recentCheckIn = await db.VisitLog.findOne({
       where: {
         employee_id: entityId,
         checkin_time: {
-          [db.Sequelize.Op.gte]: oneHourAgo,
+          [db.Sequelize.Op.gte]: oneMinuteAgo,
         },
       },
       order: [["checkin_time", "DESC"]],
@@ -99,12 +99,10 @@ export default async function handler(req, res) {
     if (recentCheckIn && !checkOnly) {
       const timeSinceLastCheckIn =
         new Date() - new Date(recentCheckIn.checkin_time);
-      const minutesRemaining = Math.ceil(
-        (3600000 - timeSinceLastCheckIn) / 60000
-      );
+      const secondsRemaining = Math.ceil((60000 - timeSinceLastCheckIn) / 1000);
 
       return res.status(400).json({
-        message: `Please wait ${minutesRemaining} more minutes before checking in again`,
+        message: `Please wait ${secondsRemaining} more seconds before checking in again`,
         employeeId: entityId,
         lastCheckInTime: recentCheckIn.checkin_time,
         entityType: employee ? "employee" : "contractor",
@@ -197,17 +195,34 @@ export default async function handler(req, res) {
         });
 
         if (existingDeduction) {
-          // Update existing deduction - increment visit count and amount
-          const newVisitCount = existingDeduction.visit_count + 1;
-          const newAmount =
-            existingDeduction.amount + totalDeductionForThisVisit;
+          // Get all visit logs for this employee in the current period to recalculate total
+          const allVisitLogs = await db.VisitLog.findAll({
+            where: {
+              employee_id: entityId,
+              checkin_time: {
+                [db.Sequelize.Op.gte]: deductionPeriodStart,
+                [db.Sequelize.Op.lte]: deductionPeriodEnd,
+              },
+            },
+          });
+
+          // Calculate total amount based on all visits
+          let totalAmount = 0;
+          let totalVisits = 0;
+
+          allVisitLogs.forEach((visit) => {
+            const visitAmount = mealDeductionPerVisit; // 5 QAR per visit
+            const guestAmount = visit.guest_count * mealDeductionPerGuest; // 5 QAR per guest
+            totalAmount += visitAmount + guestAmount;
+            totalVisits++;
+          });
 
           await existingDeduction.update({
-            amount: newAmount,
-            visit_count: newVisitCount,
+            amount: totalAmount,
+            visit_count: totalVisits,
           });
           console.log(
-            `Updated meal deduction for ${entityId} for period ${deductionPeriod}: ${newAmount} QAR (${newVisitCount} visits, ${guestCount} guests this visit)`
+            `Updated meal deduction for ${entityId} for period ${deductionPeriod}: ${totalAmount} QAR (${totalVisits} visits total)`
           );
         } else {
           // Create new deduction

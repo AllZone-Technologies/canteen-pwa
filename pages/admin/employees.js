@@ -150,9 +150,6 @@ export default function Employees() {
     if (!formData.employeeId.trim()) {
       errors.employeeId = "Employee ID is required";
       isValid = false;
-    } else if (formData.employeeId.length < 3) {
-      errors.employeeId = "Employee ID must be at least 3 characters long";
-      isValid = false;
     } else if (formData.employeeId.length > 20) {
       errors.employeeId = "Employee ID must not exceed 20 characters";
       isValid = false;

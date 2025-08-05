@@ -23,11 +23,10 @@ export default function Header() {
         <Image
           src="/logo.svg"
           alt="UHP Canteen Logo"
-          width={200}
-          height={200}
+          width={120}
+          height={60}
           className={styles.logoImage}
           priority
-          style={{ width: "200px", height: "auto" }}
         />
       </div>
       <div className={styles.headerRight}>

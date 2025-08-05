@@ -8,18 +8,133 @@
   position: sticky;
   top: 0;
   z-index: 1000;
-  height: 220px;
+  min-height: 60px;
+  max-height: 80px;
 }
 
 .logoContainer {
   display: flex;
   align-items: center;
   padding: 0.5rem;
-  min-width: 200px;
+  min-width: 120px;
 }
 
 .logoImage {
-  width: 200px !important;
+  width: 120px !important;
   height: auto !important;
-  min-width: 200px;
+  min-width: 80px;
+  max-width: 150px;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.logoutButton,
+.loginButton {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.logoutButton {
+  background-color: #dc3545;
+  color: white;
+}
+
+.logoutButton:hover {
+  background-color: #c82333;
+}
+
+.loginButton {
+  background-color: #007bff;
+  color: white;
+}
+
+.loginButton:hover {
+  background-color: #0056b3;
+}
+
+.statusTag {
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  background-color: #28a745;
+  color: white;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .header {
+    padding: 0.25rem 0.5rem;
+    min-height: 50px;
+    max-height: 70px;
+  }
+  
+  .logoContainer {
+    min-width: 100px;
+    padding: 0.25rem;
+  }
+  
+  .logoImage {
+    width: 100px !important;
+    min-width: 60px;
+    max-width: 120px;
+  }
+  
+  .headerRight {
+    gap: 0.5rem;
+  }
+  
+  .logoutButton,
+  .loginButton {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+  }
+  
+  .statusTag {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .header {
+    padding: 0.2rem 0.4rem;
+    min-height: 45px;
+    max-height: 60px;
+  }
+  
+  .logoContainer {
+    min-width: 80px;
+    padding: 0.2rem;
+  }
+  
+  .logoImage {
+    width: 80px !important;
+    min-width: 50px;
+    max-width: 100px;
+  }
+  
+  .headerRight {
+    gap: 0.3rem;
+  }
+  
+  .logoutButton,
+  .loginButton {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.75rem;
+  }
+  
+  .statusTag {
+    padding: 0.15rem 0.3rem;
+    font-size: 0.65rem;
+  }
 }

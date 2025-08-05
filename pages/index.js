@@ -69,7 +69,7 @@ export default function Home() {
 
       if (response.status === "success") {
         // Handle both employee and contractor data
-        const entityData = response.data.data;
+        const entityData = response.data;
 
         if (response.data.entityType === "contractor") {
           setCheckedInEmployee({
@@ -157,8 +157,8 @@ export default function Home() {
     try {
       let payload = { sourceType: "manual" };
       if (item.type === "employee") {
-        payload.employeeId = item.id;
-        payload.guestCount = getGuestCount(item.id);
+        payload.employeeId = item.employee_id;
+        payload.guestCount = getGuestCount(item.employee_id);
       } else if (item.type === "contractor") {
         payload.contractorId = item.id;
       }
@@ -171,7 +171,7 @@ export default function Home() {
         if (item.type === "employee") {
           setGuestCounts((prev) => {
             const newCounts = { ...prev };
-            delete newCounts[item.id];
+            delete newCounts[item.employee_id];
             return newCounts;
           });
         }
@@ -206,15 +206,16 @@ export default function Home() {
               src="/logo.svg"
               alt="UHP Canteen Logo"
               width={120}
-              height={50}
+              height={60}
               className={styles.logoImage}
+              priority
             />
           </div>
           <div className={styles.headerRight}>
             <NetworkStatus />
             <QueueStatus />
             <ThemeToggle />
-            <div className={styles.adminSection}>
+            {/* <div className={styles.adminSection}>
               <button onClick={handleAdminLogin} className={styles.adminButton}>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -233,7 +234,7 @@ export default function Home() {
                 </svg>
                 Admin Login
               </button>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>
@@ -327,19 +328,24 @@ export default function Home() {
                           </p>
                           <div className={styles.guestCounter}>
                             <button
-                              onClick={() => decrementGuestCount(item.id)}
+                              onClick={() =>
+                                decrementGuestCount(item.employee_id)
+                              }
                               className={styles.guestButton}
                               disabled={
-                                isProcessing || getGuestCount(item.id) === 0
+                                isProcessing ||
+                                getGuestCount(item.employee_id) === 0
                               }
                             >
                               -
                             </button>
                             <span className={styles.guestCount}>
-                              {getGuestCount(item.id)}
+                              {getGuestCount(item.employee_id)}
                             </span>
                             <button
-                              onClick={() => incrementGuestCount(item.id)}
+                              onClick={() =>
+                                incrementGuestCount(item.employee_id)
+                              }
                               className={styles.guestButton}
                               disabled={isProcessing}
                             >

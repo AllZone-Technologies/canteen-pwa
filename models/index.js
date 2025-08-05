@@ -34,15 +34,8 @@ const MealDeduction = require("./MealDeduction")(
 );
 
 // Associations
-Employee.hasMany(VisitLog, {
-  foreignKey: "employee_id",
-  sourceKey: "employee_id",
-});
-VisitLog.belongsTo(Employee, {
-  foreignKey: "employee_id",
-  targetKey: "employee_id",
-});
-
+// Note: VisitLog association removed to allow contractor check-ins
+// VisitLog can contain both employee_id and contractor identifiers
 Employee.hasMany(MealDeduction, {
   foreignKey: "employee_id",
   sourceKey: "employee_id",
