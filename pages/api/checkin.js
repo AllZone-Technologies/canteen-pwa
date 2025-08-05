@@ -45,7 +45,9 @@ export default async function handler(req, res) {
       checkInEntity = employee || contractor;
     } else if (employeeId) {
       // Find employee by ID (for manual check-in)
-      employee = await db.Employee.findByPk(employeeId);
+      employee = await db.Employee.findOne({
+        where: { employee_id: employeeId },
+      });
       checkInEntity = employee;
     } else if (contractorId) {
       // Find contractor by ID (for manual check-in)
