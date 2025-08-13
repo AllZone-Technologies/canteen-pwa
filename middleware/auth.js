@@ -1,20 +1,47 @@
-import jwt from "jsonwebtoken";
-
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+import { verifyToken } from "../utils/jwt";
 
 export function withAuth(handler) {
   return async (req, res) => {
     try {
-      const token = req.cookies.adminToken;
+      const token = req.cookies.admin_token;
 
       if (!token) {
         return res.status(401).json({ message: "Authentication required" });
       }
 
-      const decoded = jwt.verify(token, JWT_SECRET);
+      const decoded = await verifyToken(token);
+
+      if (
+        !decoded ||
+        (decoded.role !== "admin" && decoded.role !== "manager")
+      ) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      // Add user info to request
+      req.user = decoded;
+
+      return handler(req, res);
+    } catch (error) {
+      console.error("Auth error:", error);
+      return res.status(401).json({ message: "Invalid token" });
+    }
+  };
+}
+
+export function withAdminOnly(handler) {
+  return async (req, res) => {
+    try {
+      const token = req.cookies.admin_token;
+
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const decoded = await verifyToken(token);
 
       if (!decoded || decoded.role !== "admin") {
-        return res.status(403).json({ message: "Access denied" });
+        return res.status(403).json({ message: "Admin access required" });
       }
 
       // Add user info to request
@@ -35,7 +62,7 @@ export function withAuthPage(Component) {
 }
 
 export async function getServerSideProps(context) {
-  const token = context.req.cookies.adminToken;
+  const token = context.req.cookies.admin_token;
 
   if (!token) {
     return {
@@ -47,9 +74,9 @@ export async function getServerSideProps(context) {
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = await verifyToken(token);
 
-    if (!decoded || decoded.role !== "admin") {
+    if (!decoded || (decoded.role !== "admin" && decoded.role !== "manager")) {
       return {
         redirect: {
           destination: "/admin/login",
