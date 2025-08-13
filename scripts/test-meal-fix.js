@@ -40,15 +40,14 @@ async function testMealFix() {
 
     let totalAmount = 0;
     visitLogs.forEach((visit, index) => {
-      const visitAmount = 5;
-      const guestAmount = visit.guest_count * 5;
-      const totalVisitAmount = visitAmount + guestAmount;
+      const visitAmount = 5; // 5 QAR per visit only
+      const totalVisitAmount = visitAmount; // No guest charges
       totalAmount += totalVisitAmount;
 
       console.log(
         `Visit ${index + 1}: ${visit.checkin_time.toDateString()} - Guests: ${
           visit.guest_count
-        } - Amount: ${totalVisitAmount} QAR`
+        } - Amount: ${totalVisitAmount} QAR (guests are free)`
       );
     });
 

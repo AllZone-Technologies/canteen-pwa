@@ -66,6 +66,9 @@ export default function AutoMealDeductions() {
             the network folder.
           </p>
           <p>
+            <strong>Pricing:</strong> 5 QAR per employee visit. Guests are free.
+          </p>
+          <p>
             <strong>Windows Server:</strong> Files saved to
             \\192.168.1.155\Canteen_Report
           </p>

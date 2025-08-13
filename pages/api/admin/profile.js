@@ -21,7 +21,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "GET") {
-      // Return profile information
+      // Return profile information including role
       return res.status(200).json({
         name: admin.name,
         email: admin.email,
@@ -65,6 +65,7 @@ export default async function handler(req, res) {
         message: "Profile updated successfully",
         name: admin.name,
         email: admin.email,
+        role: admin.role,
       });
     }
 

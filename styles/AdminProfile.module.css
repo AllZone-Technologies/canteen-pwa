@@ -90,6 +90,32 @@
   margin-top: 0.25rem;
 }
 
+.roleDisplay {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.role {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  border-radius: 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  text-align: center;
+}
+
+.role.admin {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.role.manager {
+  background: var(--warning-light);
+  color: var(--warning);
+}
+
 .submitButton {
   background: var(--accent-color);
   color: var(--text-on-accent);

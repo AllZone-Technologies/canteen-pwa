@@ -33,8 +33,13 @@ export default async function handler(req, res) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // Generate JWT token
-    const token = await signToken({ id: admin.id, email: admin.email });
+    // Generate JWT token with role information
+    const token = await signToken({
+      id: admin.id,
+      email: admin.email,
+      role: admin.role,
+      name: admin.name,
+    });
 
     // Set the token in an HTTP-only cookie
     res.setHeader(

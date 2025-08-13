@@ -91,8 +91,8 @@ export default function MealDeductions() {
 
         <div className={styles.description}>
           <p>
-            Generate meal deductions for employee check-ins. Each visit costs 5
-            QAR.
+            Generate meal deductions for employee check-ins. Each employee visit costs 5
+            QAR. <strong>Guests are free and do not incur charges.</strong>
           </p>
           <p>Only employee visits are included (contractors are excluded).</p>
           <p>

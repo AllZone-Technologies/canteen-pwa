@@ -181,10 +181,8 @@ export default async function handler(req, res) {
           deductionPeriodEnd
         );
 
-        const mealDeductionPerVisit = 5; // 5 QAR per visit
-        const mealDeductionPerGuest = 5; // 5 QAR per guest
-        const totalDeductionForThisVisit =
-          mealDeductionPerVisit + guestCount * mealDeductionPerGuest;
+        const mealDeductionPerVisit = 5; // 5 QAR per visit only
+        const totalDeductionForThisVisit = mealDeductionPerVisit; // No guest charges
 
         // Check if meal deduction already exists for this employee and period
         const existingDeduction = await db.MealDeduction.findOne({
@@ -211,9 +209,8 @@ export default async function handler(req, res) {
           let totalVisits = 0;
 
           allVisitLogs.forEach((visit) => {
-            const visitAmount = mealDeductionPerVisit; // 5 QAR per visit
-            const guestAmount = visit.guest_count * mealDeductionPerGuest; // 5 QAR per guest
-            totalAmount += visitAmount + guestAmount;
+            const visitAmount = mealDeductionPerVisit; // 5 QAR per visit only
+            totalAmount += visitAmount; // No guest charges
             totalVisits++;
           });
 
@@ -235,7 +232,7 @@ export default async function handler(req, res) {
             visit_count: 1,
           });
           console.log(
-            `Created meal deduction for ${entityId} for period ${deductionPeriod}: ${totalDeductionForThisVisit} QAR (1 visit, ${guestCount} guests)`
+            `Created meal deduction for ${entityId} for period ${deductionPeriod}: ${totalDeductionForThisVisit} QAR (1 visit, guests are free)`
           );
         }
       } catch (deductionError) {

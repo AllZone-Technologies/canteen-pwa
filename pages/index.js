@@ -92,6 +92,9 @@ export default function Home() {
         await new Promise((resolve) => setTimeout(resolve, 3000));
         setCheckedInEmployee(null);
 
+        // Scanner continues running - no need to resume since we never paused it
+        // This prevents the "paused" message from appearing
+
         return true;
       }
 

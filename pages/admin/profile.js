@@ -170,6 +170,16 @@ function AdminProfileContent() {
                 />
               </div>
 
+              <div className={styles.formGroup}>
+                <label>Role</label>
+                <div className={styles.roleDisplay}>
+                  <span className={`${styles.role} ${styles[adminInfo.role]}`}>
+                    {adminInfo.role}
+                  </span>
+                </div>
+                <small>Your role in the system. Contact an administrator to change this.</small>
+              </div>
+
               <button
                 type="submit"
                 className={styles.submitButton}

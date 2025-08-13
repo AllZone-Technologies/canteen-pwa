@@ -57,14 +57,13 @@ async function fixMealDeductions() {
       let correctVisitCount = 0;
       
       visitLogs.forEach((visit, index) => {
-        const visitAmount = 5; // 5 QAR per visit
-        const guestAmount = visit.guest_count * 5; // 5 QAR per guest
-        const totalVisitAmount = visitAmount + guestAmount;
+        const visitAmount = 5; // 5 QAR per visit only
+        const totalVisitAmount = visitAmount; // No guest charges
         
         correctAmount += totalVisitAmount;
         correctVisitCount++;
         
-        console.log(`Visit ${index + 1}: ${visit.checkin_time.toDateString()} - Guests: ${visit.guest_count} - Amount: ${visitAmount} + ${guestAmount} = ${totalVisitAmount} QAR`);
+        console.log(`Visit ${index + 1}: ${visit.checkin_time.toDateString()} - Guests: ${visit.guest_count} - Amount: ${visitAmount} QAR (guests are free)`);
       });
       
       console.log(`\nCalculated total: ${correctAmount} QAR (${correctVisitCount} visits)`);

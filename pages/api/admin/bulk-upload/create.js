@@ -161,17 +161,17 @@ export default async function handler(req, res) {
       } catch (error) {
         // Handle database constraint errors gracefully
         let errorMessage = error.message;
-        
-        if (error.name === 'SequelizeUniqueConstraintError') {
+
+        if (error.name === "SequelizeUniqueConstraintError") {
           const field = error.errors?.[0]?.path;
-          if (field === 'employee_id') {
+          if (field === "employee_id") {
             errorMessage = "Employee ID already exists in the system";
-          } else if (field === 'email') {
+          } else if (field === "email") {
             errorMessage = "Email address already exists in the system";
           } else {
             errorMessage = `Duplicate value for field: ${field}`;
           }
-        } else if (error.name === 'SequelizeValidationError') {
+        } else if (error.name === "SequelizeValidationError") {
           errorMessage = error.errors?.[0]?.message || "Validation error";
         }
 

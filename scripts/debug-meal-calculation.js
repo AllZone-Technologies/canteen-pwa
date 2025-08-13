@@ -41,12 +41,11 @@ async function debugMealCalculation() {
     
     let calculatedTotal = 0;
     visitLogs.forEach((visit, index) => {
-      const visitAmount = 5; // 5 QAR per visit
-      const guestAmount = visit.guest_count * 5; // 5 QAR per guest
-      const totalVisitAmount = visitAmount + guestAmount;
+      const visitAmount = 5; // 5 QAR per visit only
+      const totalVisitAmount = visitAmount; // No guest charges
       calculatedTotal += totalVisitAmount;
       
-      console.log(`Visit ${index + 1}: ${visit.checkin_time.toDateString()} - Guests: ${visit.guest_count} - Amount: ${visitAmount} + ${guestAmount} = ${totalVisitAmount} QAR`);
+      console.log(`Visit ${index + 1}: ${visit.checkin_time.toDateString()} - Guests: ${visit.guest_count} - Amount: ${visitAmount} QAR (guests are free)`);
     });
     
     console.log(`\nCalculated total: ${calculatedTotal} QAR`);
@@ -111,12 +110,11 @@ async function debugMealCalculation() {
     
     let calculatedTotal2 = 0;
     visitLogs2.forEach((visit, index) => {
-      const visitAmount = 5;
-      const guestAmount = visit.guest_count * 5;
-      const totalVisitAmount = visitAmount + guestAmount;
+      const visitAmount = 5; // 5 QAR per visit only
+      const totalVisitAmount = visitAmount; // No guest charges
       calculatedTotal2 += totalVisitAmount;
       
-      console.log(`Visit ${index + 1}: ${visit.checkin_time.toDateString()} - Guests: ${visit.guest_count} - Amount: ${visitAmount} + ${guestAmount} = ${totalVisitAmount} QAR`);
+      console.log(`Visit ${index + 1}: ${visit.checkin_time.toDateString()} - Guests: ${visit.guest_count} - Amount: ${visitAmount} QAR (guests are free)`);
     });
     
     console.log(`\nCalculated total: ${calculatedTotal2} QAR`);

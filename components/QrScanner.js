@@ -35,10 +35,23 @@ const QrScanner = forwardRef(
     const initializationInProgressRef = useRef(false);
     const cleanupInProgressRef = useRef(false);
     const shouldRestartRef = useRef(false);
+    const isIOSRef = useRef(false);
 
-    // Mark as client-side on mount
+    // Mark as client-side on mount and detect iOS
     useEffect(() => {
       setIsClient(true);
+      // Detect iOS device for camera permission preservation
+      isIOSRef.current =
+        /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      console.log("Device detected as iOS:", isIOSRef.current);
+
+      // On iOS, preserve camera permissions by not clearing DOM elements
+      if (isIOSRef.current) {
+        console.log(
+          "iOS device detected - enabling camera permission preservation"
+        );
+      }
     }, []);
 
     const stopScanner = useCallback(async () => {
@@ -56,10 +69,12 @@ const QrScanner = forwardRef(
         } catch (error) {
           console.warn("Error stopping scanner:", error);
         } finally {
-          // Clear the DOM element
-          const readerElement = document.getElementById("reader");
-          if (readerElement) {
-            readerElement.innerHTML = "";
+          // Don't clear the DOM element on iOS to preserve camera permissions
+          if (!isIOSRef.current) {
+            const readerElement = document.getElementById("reader");
+            if (readerElement) {
+              readerElement.innerHTML = "";
+            }
           }
 
           scannerRef.current = null;
@@ -82,8 +97,9 @@ const QrScanner = forwardRef(
           isScanningRef.current = true;
           setIsProcessing(true);
 
-          // Don't stop the scanner immediately - let it continue running
-          // The parent component will handle hiding/showing the scanner
+          // Don't pause the scanner - just let it continue running
+          // This prevents the "paused" message from appearing
+          console.log("Processing scan while scanner continues running");
 
           // Check if employee is already checked in
           const response = await fetch("/api/checkin", {
@@ -108,6 +124,8 @@ const QrScanner = forwardRef(
           // If not already checked in, proceed with normal check-in
           console.log("Proceeding with normal check-in");
           onScanSuccess(decodedText);
+
+          // Note: Scanner continues running - no need to pause/resume
         } catch (error) {
           console.error("Error checking check-in status:", error);
           setIsProcessing(false);
@@ -154,6 +172,7 @@ const QrScanner = forwardRef(
         isProcessing,
         isScanning: isScanningRef.current,
         initializationInProgress: initializationInProgressRef.current,
+        isIOS: isIOSRef.current,
       });
 
       // Prevent multiple simultaneous initializations
@@ -193,15 +212,37 @@ const QrScanner = forwardRef(
           return;
         }
 
+        // On iOS, try to reuse existing scanner if possible
+        if (isIOSRef.current && scannerRef.current) {
+          try {
+            // Check if scanner is still working
+            const isRunning = await scannerRef.current.isScanning();
+            if (isRunning) {
+              console.log(
+                "Reusing existing iOS scanner - no need to reinitialize"
+              );
+              setIsInitialized(true);
+              isScanningRef.current = false;
+              initializationInProgressRef.current = false;
+              return;
+            }
+          } catch (error) {
+            console.log("Existing scanner not working, creating new one");
+          }
+        }
+
         // Only clear existing scanner if we're not already initialized
         if (scannerRef.current) {
+          console.log("Cleaning up existing scanner before creating new one");
           await stopScanner();
           // Wait for cleanup to complete
           await new Promise((resolve) => setTimeout(resolve, 300));
         }
 
-        // Clear the DOM element completely
-        readerElement.innerHTML = "";
+        // Clear the DOM element completely (except on iOS)
+        if (!isIOSRef.current) {
+          readerElement.innerHTML = "";
+        }
 
         // Create new scanner
         console.log("Creating new scanner instance");
@@ -211,6 +252,13 @@ const QrScanner = forwardRef(
           fps: 10,
           qrbox: { width: 400, height: 400 },
           aspectRatio: 1,
+          // iOS-specific optimizations
+          ...(isIOSRef.current && {
+            disableFlip: false,
+            experimentalFeatures: {
+              useBarCodeDetectorIfSupported: false,
+            },
+          }),
         };
 
         await scannerRef.current.start(
@@ -252,13 +300,15 @@ const QrScanner = forwardRef(
         isActive,
         isClient,
         isInitialized,
+        isIOS: isIOSRef.current,
       });
 
       if (
         isActive &&
         isClient &&
         !isInitialized &&
-        !initializationInProgressRef.current
+        !initializationInProgressRef.current &&
+        !scannerRef.current // Only initialize if no scanner exists
       ) {
         // Add a small delay to ensure DOM is ready
         const timer = setTimeout(() => {
@@ -271,7 +321,10 @@ const QrScanner = forwardRef(
 
       return () => {
         console.log("Scanner cleanup running");
-        stopScanner();
+        // Only cleanup on unmount, not on every effect run
+        if (!isActive) {
+          stopScanner();
+        }
       };
     }, [isActive, isClient, initializeScanner, stopScanner, isInitialized]);
 
