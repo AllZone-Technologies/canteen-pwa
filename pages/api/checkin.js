@@ -71,15 +71,15 @@ export default async function handler(req, res) {
       ? `${employee.firstname} ${employee.lastname}`
       : contractor.company_name;
 
-    // Check if entity has checked in within the last minute
-    const oneMinuteAgo = new Date();
-    oneMinuteAgo.setMinutes(oneMinuteAgo.getMinutes() - 1);
+    // Check if entity has checked in within the last hour
+    const oneHourAgo = new Date();
+    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
 
     const recentCheckIn = await db.VisitLog.findOne({
       where: {
         employee_id: entityId,
         checkin_time: {
-          [db.Sequelize.Op.gte]: oneMinuteAgo,
+          [db.Sequelize.Op.gte]: oneHourAgo,
         },
       },
       order: [["checkin_time", "DESC"]],
@@ -99,14 +99,35 @@ export default async function handler(req, res) {
     if (recentCheckIn && !checkOnly) {
       const timeSinceLastCheckIn =
         new Date() - new Date(recentCheckIn.checkin_time);
-      const secondsRemaining = Math.ceil((60000 - timeSinceLastCheckIn) / 1000);
+      const oneHourInMs = 60 * 60 * 1000; // 1 hour in milliseconds
+      const timeRemaining = oneHourInMs - timeSinceLastCheckIn;
 
-      return res.status(400).json({
-        message: `Please wait ${secondsRemaining} more seconds before checking in again`,
-        employeeId: entityId,
-        lastCheckInTime: recentCheckIn.checkin_time,
-        entityType: employee ? "employee" : "contractor",
-      });
+      if (timeRemaining > 0) {
+        const minutesRemaining = Math.ceil(timeRemaining / (60 * 1000));
+        const secondsRemaining = Math.ceil(timeRemaining / 1000);
+
+        let timeMessage;
+        if (minutesRemaining >= 1) {
+          timeMessage = `Please wait ${minutesRemaining} minute${
+            minutesRemaining > 1 ? "s" : ""
+          } before checking in again`;
+        } else {
+          timeMessage = `Please wait ${secondsRemaining} second${
+            secondsRemaining > 1 ? "s" : ""
+          } before checking in again`;
+        }
+
+        return res.status(400).json({
+          message: timeMessage,
+          employeeId: entityId,
+          lastCheckInTime: recentCheckIn.checkin_time,
+          entityType: employee ? "employee" : "contractor",
+          timeRemaining: timeRemaining,
+          canCheckInAfter: new Date(
+            new Date(recentCheckIn.checkin_time).getTime() + oneHourInMs
+          ),
+        });
+      }
     }
 
     // If this is just a check and entity hasn't checked in recently
