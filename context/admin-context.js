@@ -3,7 +3,11 @@ import { createContext, useContext, useState, useEffect } from "react";
 const AdminContext = createContext();
 
 export function AdminProvider({ children }) {
-  const [adminInfo, setAdminInfo] = useState({ name: "Admin", email: "" });
+  const [adminInfo, setAdminInfo] = useState({
+    name: "Admin",
+    email: "",
+    role: "admin",
+  });
   const [loading, setLoading] = useState(true);
 
   const fetchAdminInfo = async () => {
@@ -28,6 +32,16 @@ export function AdminProvider({ children }) {
     fetchAdminInfo();
   };
 
+  // Helper function to check if user is admin
+  const isAdmin = () => {
+    return adminInfo.role === "admin";
+  };
+
+  // Helper function to check if user is manager or admin
+  const isManagerOrAdmin = () => {
+    return adminInfo.role === "manager" || adminInfo.role === "admin";
+  };
+
   useEffect(() => {
     fetchAdminInfo();
   }, []);
@@ -37,6 +51,8 @@ export function AdminProvider({ children }) {
     loading,
     updateAdminInfo,
     refreshAdminInfo,
+    isAdmin,
+    isManagerOrAdmin,
   };
 
   return (
