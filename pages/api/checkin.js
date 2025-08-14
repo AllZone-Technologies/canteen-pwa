@@ -6,6 +6,10 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Verify database connection
+    await db.sequelize.authenticate();
+    console.log("Database connection verified");
+
     const {
       qrCodeData,
       qrCode,
@@ -45,9 +49,19 @@ export default async function handler(req, res) {
       checkInEntity = employee || contractor;
     } else if (employeeId) {
       // Find employee by ID (for manual check-in)
+      console.log(
+        "Looking for employee with ID:",
+        employeeId,
+        "Type:",
+        typeof employeeId
+      );
       employee = await db.Employee.findOne({
         where: { employee_id: String(employeeId) },
       });
+      console.log(
+        "Employee found:",
+        employee ? employee.employee_id : "Not found"
+      );
       checkInEntity = employee;
     } else if (contractorId) {
       // Find contractor by ID (for manual check-in)
@@ -71,9 +85,12 @@ export default async function handler(req, res) {
       ? `${employee.firstname} ${employee.lastname}`
       : contractor.company_name;
 
-    // Check if entity has checked in within the last hour
+    // Check if entity has checked in within the last hour (for both QR and manual)
     const oneHourAgo = new Date();
     oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+
+    console.log("Checking restriction for entity:", entityId);
+    console.log("One hour ago:", oneHourAgo);
 
     const recentCheckIn = await db.VisitLog.findOne({
       where: {
@@ -85,6 +102,17 @@ export default async function handler(req, res) {
       order: [["checkin_time", "DESC"]],
     });
 
+    console.log(
+      "Recent checkin found:",
+      recentCheckIn
+        ? {
+            employee_id: recentCheckIn.employee_id,
+            checkin_time: recentCheckIn.checkin_time,
+            source_type: recentCheckIn.source_type,
+          }
+        : "None"
+    );
+
     // If this is just a check and entity has checked in recently
     if (checkOnly && recentCheckIn) {
       return res.status(200).json({
@@ -92,6 +120,7 @@ export default async function handler(req, res) {
         employeeId: entityId,
         lastCheckInTime: recentCheckIn.checkin_time,
         entityType: employee ? "employee" : "contractor",
+        message: `${entityName} has already checked in within the last hour`,
       });
     }
 
@@ -108,11 +137,11 @@ export default async function handler(req, res) {
 
         let timeMessage;
         if (minutesRemaining >= 1) {
-          timeMessage = `Please wait ${minutesRemaining} minute${
+          timeMessage = `${entityName} has already checked in. Please wait ${minutesRemaining} minute${
             minutesRemaining > 1 ? "s" : ""
           } before checking in again`;
         } else {
-          timeMessage = `Please wait ${secondsRemaining} second${
+          timeMessage = `${entityName} has already checked in. Please wait ${secondsRemaining} second${
             secondsRemaining > 1 ? "s" : ""
           } before checking in again`;
         }
@@ -126,6 +155,7 @@ export default async function handler(req, res) {
           canCheckInAfter: new Date(
             new Date(recentCheckIn.checkin_time).getTime() + oneHourInMs
           ),
+          isRestricted: true,
         });
       }
     }
@@ -136,6 +166,7 @@ export default async function handler(req, res) {
         alreadyCheckedIn: false,
         employeeId: entityId,
         entityType: employee ? "employee" : "contractor",
+        message: `${entityName} can check in now`,
       });
     }
 
@@ -280,6 +311,7 @@ export default async function handler(req, res) {
       visitLog,
       data: responseData,
       entityType: employee ? "employee" : "contractor",
+      message: `${entityName} checked in successfully at ${new Date().toLocaleTimeString()}`,
     });
   } catch (error) {
     console.error("Check-in error:", error);

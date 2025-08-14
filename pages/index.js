@@ -29,16 +29,24 @@ export default function Home() {
   const scannerRef = useRef(null);
 
   const showMessage = useCallback((msg, type) => {
-    console.log("showMessage called:", msg, type); // Debug log
     if (messageTimeoutRef.current) {
       clearTimeout(messageTimeoutRef.current);
     }
-    setMessage(msg);
-    setMessageType(type);
+
+    // Force immediate state update
+    setMessage("");
+    setMessageType("");
+
+    // Use setTimeout to ensure state update happens
+    setTimeout(() => {
+      setMessage(msg);
+      setMessageType(type);
+    }, 10);
+
     messageTimeoutRef.current = setTimeout(() => {
       setMessage("");
       setMessageType("");
-    }, 2000);
+    }, 3000); // 3 seconds for better visibility
   }, []);
 
   const incrementGuestCount = (employeeId) => {
@@ -61,13 +69,19 @@ export default function Home() {
 
   const handleCheckinResponse = useCallback(
     async (response) => {
+      console.log("handleCheckinResponse called with:", response);
+
+      // Handle restricted checkins (already checked in)
       if (response.data?.isRestricted) {
+        console.log("Checkin is restricted:", response.data.error);
         showMessage(response.data.error, "error");
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 3000)); // Show error for 3 seconds
         return false;
       }
 
+      // Handle successful checkins
       if (response.status === "success") {
+        console.log("Checkin successful:", response.data);
         // Handle both employee and contractor data
         const entityData = response.data;
 
@@ -88,6 +102,9 @@ export default function Home() {
           setEntityType("employee");
         }
 
+        // Show success message
+        showMessage(response.data.message || "Check-in successful!", "success");
+
         // Wait for success animation to complete
         await new Promise((resolve) => setTimeout(resolve, 3000));
         setCheckedInEmployee(null);
@@ -98,12 +115,21 @@ export default function Home() {
         return true;
       }
 
+      // Handle queued checkins
       if (response.status === "queued") {
+        console.log("Checkin queued:", response.message);
         showMessage(response.message, "info");
         return true;
       }
 
-      showMessage(response.data?.error || "Check-in failed", "error");
+      // Handle error responses
+      console.log("Checkin failed:", response.data);
+      const errorMessage =
+        response.data?.error || response.data?.message || "Check-in failed";
+      showMessage(errorMessage, "error");
+
+      // Show error message for 3 seconds
+      await new Promise((resolve) => setTimeout(resolve, 3000));
       return false;
     },
     [showMessage]
@@ -115,6 +141,7 @@ export default function Home() {
       console.log("onScanSuccess called with:", decodedText);
       setIsProcessing(true);
       try {
+        console.log("Calling API checkin for QR code:", decodedText);
         const result = await api.checkin({
           qrCode: decodedText,
           sourceType: "QR",
@@ -123,7 +150,7 @@ export default function Home() {
         await handleCheckinResponse(result);
       } catch (error) {
         console.error("Error in onScanSuccess:", error);
-        showMessage(error.message, "error");
+        showMessage(error.message || "QR check-in failed", "error");
       } finally {
         setIsProcessing(false);
       }
@@ -165,7 +192,21 @@ export default function Home() {
       } else if (item.type === "contractor") {
         payload.contractorId = item.id;
       }
+
+      console.log("Manual checkin payload:", payload);
+
       const result = await api.checkin(payload);
+      console.log("Manual checkin API result:", result);
+
+      // Check if this is a restricted checkin
+      if (result.data?.isRestricted) {
+        console.log("Manual checkin is restricted, showing error message");
+        const errorMsg = result.data.error || "Check-in is restricted";
+        showMessage(errorMsg, "error");
+        setIsProcessing(false);
+        return;
+      }
+
       const success = await handleCheckinResponse(result);
       if (success) {
         setSearchResults([]);
@@ -180,7 +221,8 @@ export default function Home() {
         }
       }
     } catch (error) {
-      showMessage(error.message, "error");
+      console.error("Manual checkin error:", error);
+      showMessage(error.message || "Manual check-in failed", "error");
     } finally {
       setIsProcessing(false);
     }
@@ -249,6 +291,16 @@ export default function Home() {
         {message && (
           <div className={`${styles.message} ${styles[messageType]}`}>
             {message}
+            <div
+              style={{ fontSize: "0.8rem", marginTop: "0.5rem", opacity: 0.8 }}
+            >
+              {messageType === "error"
+                ? "❌"
+                : messageType === "success"
+                ? "✅"
+                : "ℹ️"}{" "}
+              {messageType.toUpperCase()}
+            </div>
           </div>
         )}
 

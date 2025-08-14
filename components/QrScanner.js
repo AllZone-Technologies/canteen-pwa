@@ -115,22 +115,25 @@ const QrScanner = forwardRef(
           console.log("Check-in response data:", data);
 
           if (data.alreadyCheckedIn) {
-            showMessage(`${data.employeeId} already checked in`, "error");
+            const errorMsg = data.message || `${data.employeeId} already checked in within the last hour`;
+            console.log("Employee already checked in:", errorMsg);
+            showMessage(errorMsg, "error");
             setIsProcessing(false);
             isScanningRef.current = false;
             return;
           }
 
           // If not already checked in, proceed with normal check-in
-          console.log("Proceeding with normal check-in");
+          console.log("Proceeding with normal check-in for:", decodedText);
           onScanSuccess(decodedText);
 
           // Note: Scanner continues running - no need to pause/resume
         } catch (error) {
           console.error("Error checking check-in status:", error);
+          const errorMsg = "An error occurred while checking status. Please try again.";
+          showMessage(errorMsg, "error");
           setIsProcessing(false);
           isScanningRef.current = false;
-          showMessage("An error occurred. Please try again.", "error");
         }
       },
       [isProcessing, setIsProcessing, onScanSuccess, showMessage]
