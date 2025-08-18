@@ -103,3 +103,53 @@
     font-size: 18px;
   }
 }
+
+/* For mobile devices - make more compact */
+@media (max-width: 767px) {
+  .scannerContainer {
+    padding: 15px;
+  }
+
+  .cameraFrame {
+    max-width: 100%;
+    aspect-ratio: 1;
+  }
+
+  .instruction {
+    margin-top: 15px;
+    font-size: 0.9rem;
+  }
+}
+
+/* For very small screens */
+@media (max-width: 480px) {
+  .scannerContainer {
+    padding: 10px;
+  }
+
+  .cameraFrame {
+    max-width: 100%;
+  }
+
+  .instruction {
+    margin-top: 10px;
+    font-size: 0.8rem;
+  }
+}
+
+/* For landscape orientation on mobile devices */
+@media (max-width: 767px) and (orientation: landscape) {
+  .scannerContainer {
+    padding: 10px;
+  }
+
+  .cameraFrame {
+    max-width: 80%;
+    aspect-ratio: 1;
+  }
+
+  .instruction {
+    margin-top: 8px;
+    font-size: 0.75rem;
+  }
+}
