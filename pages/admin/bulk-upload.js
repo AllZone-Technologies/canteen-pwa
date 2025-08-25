@@ -222,15 +222,15 @@ export default function BulkUpload({ onClose }) {
                       row: 2,
                       type: "duplicate_employee_id",
                       message: "Duplicate Employee ID within file: EMP001",
-                      employee_id: "EMP001"
+                      employee_id: "EMP001",
                     },
                     {
                       row: 3,
                       type: "duplicate_email",
                       message: "Duplicate Email within file: john@example.com",
-                      email: "john@example.com"
-                    }
-                  ]
+                      email: "john@example.com",
+                    },
+                  ],
                 };
                 setPreviewData(testData);
                 setValidationWarnings(testData.warnings);

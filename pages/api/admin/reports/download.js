@@ -2,6 +2,11 @@ import { Parser } from "json2csv";
 import * as XLSX from "xlsx";
 import db from "../../../../models";
 import ExcelJS from "exceljs";
+import {
+  generatePDF,
+  generateReportsHTML,
+  generatePrintableHTML,
+} from "../../../../lib/pdfGenerator";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -65,6 +70,8 @@ export default async function handler(req, res) {
       return generateCSV(reportData, res);
     } else if (format === "xlsx") {
       return generateExcel(reportData, res);
+    } else if (format === "pdf") {
+      return generatePDFReport(reportData, res);
     } else {
       return res.status(400).json({ message: "Invalid format" });
     }
@@ -396,4 +403,66 @@ async function generateExcel(reportData, res) {
 
   await workbook.xlsx.write(res);
   return res.status(200).end();
+}
+
+async function generatePDFReport(reportData, res) {
+  try {
+    console.log("Starting PDF generation for reports...");
+    console.log("Report data:", {
+      title: reportData.title,
+      dataLength: reportData.data.length,
+      columns: reportData.columns,
+    });
+
+    const htmlContent = generateReportsHTML(reportData);
+    console.log("HTML generated, length:", htmlContent.length);
+
+    try {
+      const pdf = await generatePDF(htmlContent);
+      console.log(
+        "PDF generated successfully with Puppeteer, size:",
+        pdf.length
+      );
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${reportData.title
+          .toLowerCase()
+          .replace(/\s+/g, "-")}.pdf"`
+      );
+
+      return res.status(200).send(pdf);
+    } catch (puppeteerError) {
+      console.log(
+        "Puppeteer failed, falling back to HTML method:",
+        puppeteerError.message
+      );
+
+      // Fallback: Generate printable HTML
+      const printableHTML = generatePrintableHTML(
+        htmlContent,
+        reportData.title || "Report"
+      );
+
+      // Set headers for HTML download
+      res.setHeader("Content-Type", "text/html");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${(reportData.title || "report")
+          .toLowerCase()
+          .replace(/\s+/g, "-")}.html"`
+      );
+
+      return res.status(200).send(printableHTML);
+    }
+  } catch (pdfError) {
+    console.error("PDF generation error in reports:", pdfError);
+    console.error("PDF error stack:", pdfError.stack);
+    return res.status(500).json({
+      message: "PDF generation failed",
+      error: pdfError.message,
+      details: "Check server logs for more information",
+    });
+  }
 }

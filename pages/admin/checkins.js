@@ -7,72 +7,97 @@ import styles from "../../styles/AdminCheckins.module.css";
 import { toast, Toaster } from "react-hot-toast";
 
 export default function CheckIns() {
-  const [checkIns, setCheckIns] = useState([]);
+  // Get current date in YYYY-MM-DD format
+  const getCurrentDate = () => {
+    const today = new Date();
+    return today.toISOString().split("T")[0];
+  };
+
+  // Format date for display (e.g., "Aug 21, 2025")
+  const formatDateForDisplay = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
-  const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({
-    startDate: "2025-07-10",
-    endDate: "2025-07-10",
+    startDate: getCurrentDate(),
+    endDate: getCurrentDate(),
     department: "all",
   });
+  const [departments, setDepartments] = useState([]);
   const [reportData, setReportData] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const fetchCheckIns = useCallback(async () => {
+  const fetchDepartments = async () => {
     try {
-      setLoading(true);
-      const params = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: itemsPerPage.toString(),
-        search: searchTerm,
-        startDate: filters.startDate,
-        endDate: filters.endDate,
-        ...(filters.department !== "all"
-          ? { department: filters.department }
-          : {}),
-      });
-
-      const response = await fetch(`/api/admin/checkins?${params}`);
-      if (!response.ok) throw new Error("Failed to fetch check-ins");
-
+      const response = await fetch("/api/admin/departments");
+      if (!response.ok) throw new Error("Failed to fetch departments");
       const data = await response.json();
-      setCheckIns(data.checkins || []);
-      setTotalPages(data.totalPages || 1);
-      setTotalItems(data.total || 0);
+      setDepartments(data);
     } catch (err) {
       setError(err.message);
-      toast.error("Failed to load check-ins");
-      setCheckIns([]);
+      toast.error("Failed to load departments");
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, searchTerm, filters]);
+  };
 
   useEffect(() => {
-    fetchCheckIns();
-  }, [fetchCheckIns]);
+    fetchDepartments();
+  }, []);
+
+  // Auto-generate report when component mounts or filters change
+  useEffect(() => {
+    if (departments.length > 0) {
+      generateReport();
+    }
+  }, [departments, filters.startDate, filters.endDate, filters.department]);
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
-    setFilters((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-    setCurrentPage(1); // Reset to first page when filters change
-  };
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    setCurrentPage(1); // Reset to first page when searching
-  };
-
-  const handlePageChange = (newPage) => {
-    setCurrentPage(newPage);
+    // Handle date validation
+    if (name === "startDate") {
+      // If start date is after end date, update end date to match
+      if (value > filters.endDate) {
+        setFilters((prev) => ({
+          ...prev,
+          startDate: value,
+          endDate: value,
+        }));
+      } else {
+        setFilters((prev) => ({
+          ...prev,
+          startDate: value,
+        }));
+      }
+    } else if (name === "endDate") {
+      // If end date is before start date, update start date to match
+      if (value < filters.startDate) {
+        setFilters((prev) => ({
+          ...prev,
+          startDate: value,
+          endDate: value,
+        }));
+      } else {
+        setFilters((prev) => ({
+          ...prev,
+          endDate: value,
+        }));
+      }
+    } else {
+      // Handle other filter changes normally
+      setFilters((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+    }
   };
 
   const generateReport = async () => {
@@ -88,6 +113,7 @@ export default function CheckIns() {
           filters: {
             startDate: filters.startDate,
             endDate: filters.endDate,
+            search: "", // Removed searchTerm
             ...(filters.department !== "all"
               ? { department: filters.department }
               : {}),
@@ -98,103 +124,94 @@ export default function CheckIns() {
       if (!response.ok) throw new Error("Failed to generate report");
       const data = await response.json();
       setReportData(data);
-    } catch (err) {
-      toast.error(err.message);
+    } catch (error) {
+      console.error("Error generating report:", error);
+      toast.error("Failed to generate report");
     } finally {
       setIsGenerating(false);
     }
   };
 
   const downloadReport = async (format) => {
-    try {
-      const response = await fetch(`/api/admin/reports/download`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          reportType: "daily",
-          format: format,
-          filters: {
-            startDate: filters.startDate,
-            endDate: filters.endDate,
-            ...(filters.department !== "all"
-              ? { department: filters.department }
-              : {}),
-          },
-        }),
-      });
+    if (!reportData) return;
 
-      if (!response.ok) throw new Error("Failed to download report");
+    if (format === "pdf") {
+      try {
+        // Call API for PDF download with date range parameters
+        const params = new URLSearchParams({
+          format: "pdf",
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+        });
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `checkins-report-${filters.startDate}_to_${filters.endDate}.${format}`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (err) {
-      toast.error(err.message);
+        const response = await fetch(`/api/admin/checkins/export?${params}`);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            errorData.message ||
+              errorData.error ||
+              `HTTP ${response.status}: ${response.statusText}`
+          );
+        }
+
+        const contentType = response.headers.get("content-type");
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+
+        if (contentType && contentType.includes("application/pdf")) {
+          // Successfully generated PDF
+          link.download = `checkins-report-${filters.startDate}_to_${filters.endDate}.pdf`;
+          toast.success("PDF downloaded successfully!");
+        } else {
+          // Fallback to HTML (printable version)
+          link.download = `checkins-report-${filters.startDate}_to_${filters.endDate}.html`;
+          toast.success(
+            "PDF generation failed, downloaded printable HTML instead. Open the file and use Print to PDF."
+          );
+        }
+
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error("Error downloading PDF:", error);
+        toast.error(`Failed to download PDF: ${error.message}`);
+      }
+    } else if (format === "csv") {
+      // Client-side CSV generation (existing functionality)
+      const data = reportData.data;
+      const headers = reportData.columns;
+
+      const csvContent =
+        "data:text/csv;charset=utf-8," +
+        headers.join(",") +
+        "\n" +
+        data
+          .map((row) => headers.map((header) => row[header]).join(","))
+          .join("\n");
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute(
+        "download",
+        `checkins-report-${filters.startDate}_to_${filters.endDate}.csv`
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else if (format === "xlsx") {
+      // For Excel, you would typically use a library like xlsx
+      // For now, we'll just download as CSV
+      toast.info(
+        "Excel download not implemented yet. Downloading as CSV instead."
+      );
+      downloadReport("csv");
     }
   };
-
-  // Define table columns for DataTable
-  const tableColumns = [
-    {
-      accessorKey: "name",
-      header: "Name",
-      size: 200,
-      cell: ({ getValue }) => getValue() || "N/A",
-    },
-    {
-      accessorKey: "employee_id",
-      header: "ID",
-      size: 120,
-      cell: ({ getValue }) => {
-        const id = getValue();
-        if (id && id.startsWith("CONTRACTOR_")) {
-          return id.replace("CONTRACTOR_", "C-");
-        }
-        return id || "N/A";
-      },
-    },
-    {
-      accessorKey: "entityType",
-      header: "Type",
-      size: 100,
-      cell: ({ getValue }) => getValue() || "N/A",
-    },
-    {
-      accessorKey: "department",
-      header: "Department",
-      size: 150,
-      cell: ({ getValue }) => getValue() || "N/A",
-    },
-    {
-      accessorKey: "checkin_time",
-      header: "Check-in Time",
-      size: 180,
-      cell: ({ getValue }) => {
-        const time = getValue();
-        return time ? new Date(time).toLocaleString() : "N/A";
-      },
-    },
-    {
-      accessorKey: "source_type",
-      header: "Source Type",
-      size: 120,
-      cell: ({ getValue }) => getValue() || "N/A",
-    },
-    {
-      accessorKey: "guest_count",
-      header: "Guests",
-      size: 80,
-      cell: ({ getValue }) => getValue() || 0,
-    },
-  ];
 
   if (loading)
     return (
@@ -237,21 +254,28 @@ export default function CheckIns() {
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>Check-ins</h1>
-          <div
-            className={styles.headerActions}
-            style={{ display: "flex", gap: 5 }}
-          >
-            <button
-              onClick={generateReport}
-              disabled={isGenerating}
-              className={styles.downloadButton}
-            >
-              {isGenerating ? "Generating..." : "Generate Report"}
-            </button>
-          </div>
         </div>
 
         <div className={styles.filters}>
+          <div className={styles.topRow}>
+            <div className={styles.dateRangeDisplay}>
+              <span className={styles.dateRangeLabel}>Date Range:</span>
+              <span className={styles.dateRangeValue}>
+                {formatDateForDisplay(filters.startDate)}
+                {filters.startDate !== filters.endDate &&
+                  ` - ${formatDateForDisplay(filters.endDate)}`}
+              </span>
+            </div>
+            <div className={styles.generateButtonContainer}>
+              <button
+                onClick={generateReport}
+                disabled={isGenerating}
+                className={styles.downloadButton}
+              >
+                {isGenerating ? "Generating..." : "Generate Report"}
+              </button>
+            </div>
+          </div>
           <div className={styles.filterGroup}>
             <label htmlFor="startDate">Start Date:</label>
             <input
@@ -284,79 +308,58 @@ export default function CheckIns() {
               className={styles.filterSelect}
             >
               <option value="all">All Departments</option>
-              <option value="IT">IT</option>
-              <option value="HR">HR</option>
-              <option value="Finance">Finance</option>
-              <option value="Operations">Operations</option>
+              {departments.map((dept) => (
+                <option key={dept} value={dept}>
+                  {dept}
+                </option>
+              ))}
             </select>
           </div>
         </div>
 
-        <DataTable
-          data={checkIns}
-          columns={tableColumns}
-          searchable={true}
-          sortable={true}
-          pagination={true}
-          pageSize={itemsPerPage}
-          loading={loading}
-          emptyMessage="No check-ins found for the selected date"
-          className={styles.dataTable}
-        />
-
-        {/* Custom Pagination Controls */}
-        {!loading && checkIns.length > 0 && (
-          <div className={styles.paginationContainer}>
-            <div className={styles.paginationInfo}>
-              Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
-              {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems}{" "}
-              entries
-            </div>
-            <div className={styles.paginationControls}>
-              <button
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                className={styles.paginationButton}
-              >
-                Previous
-              </button>
-              <span className={styles.pageInfo}>
-                Page {currentPage} of {totalPages}
-              </span>
-              <button
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className={styles.paginationButton}
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Report Table: Only show after Generate Report is clicked and reportData is set */}
-        {reportData && !isGenerating && (
-          <div className={styles.reportSection}>
-            <div className={styles.reportHeader}>
-              <h2>{reportData.title}</h2>
-              <div
-                className={styles.downloadButtons}
-                style={{ display: "flex", gap: 5 }}
-              >
+        {/* Report Section: Show by default with current date data */}
+        <div className={styles.reportSection}>
+          <div className={styles.reportHeader}>
+            <h2>Check-ins Report</h2>
+            <div className={styles.reportControls}>
+              <div className={styles.downloadButtons}>
                 <button
-                  onClick={() => downloadReport("csv")}
-                  className={styles.downloadButton}
+                  onClick={generateReport}
+                  disabled={isGenerating}
+                  className={styles.generateButton}
                 >
-                  Download CSV
+                  {isGenerating ? "Generating..." : "Refresh Report"}
                 </button>
-                <button
-                  onClick={() => downloadReport("xlsx")}
-                  className={styles.downloadButton}
-                >
-                  Download Excel
-                </button>
+                {reportData && (
+                  <>
+                    <button
+                      onClick={() => downloadReport("csv")}
+                      className={styles.downloadButton}
+                    >
+                      Download CSV
+                    </button>
+                    <button
+                      onClick={() => downloadReport("xlsx")}
+                      className={styles.downloadButton}
+                    >
+                      Download Excel
+                    </button>
+                    <button
+                      onClick={() => downloadReport("pdf")}
+                      className={styles.downloadButton}
+                      title="Download as PDF (or printable HTML if PDF generation fails)"
+                    >
+                      Download PDF
+                    </button>
+                  </>
+                )}
               </div>
             </div>
+          </div>
+
+          {loading ? (
+            <div className={styles.loadingMessage}>Loading check-ins...</div>
+          ) : reportData ? (
             <DataTable
               data={reportData.data}
               columns={reportData.columns.map((col) => ({
@@ -364,15 +367,20 @@ export default function CheckIns() {
                 header: col,
                 cell: ({ getValue }) => getValue() || "N/A",
               }))}
-              searchable={false}
+              searchable={true}
               sortable={true}
               pagination={true}
               pageSize={10}
               className={styles.dataTable}
-              emptyMessage="No report data found for the selected range"
+              emptyMessage="No check-ins found for the selected date range"
             />
-          </div>
-        )}
+          ) : (
+            <div className={styles.noDataMessage}>
+              Click "Refresh Report" to generate check-ins data for the selected
+              date range
+            </div>
+          )}
+        </div>
       </div>
     </AdminLayout>
   );

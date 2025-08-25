@@ -12,7 +12,13 @@ export default async function handler(req, res) {
     try {
       await db.sequelize.authenticate();
 
-      const { page = 1, filters = "{}", sort = "{}", search } = req.query;
+      const {
+        page = 1,
+        filters = "{}",
+        sort = "{}",
+        search,
+        pageSize = 10,
+      } = req.query;
       const parsedFilters = JSON.parse(filters);
       const parsedSort = JSON.parse(sort);
 
@@ -55,8 +61,10 @@ export default async function handler(req, res) {
       }
 
       // Calculate pagination
-      const limit = 5; // items per page
+      const limit = parseInt(pageSize) || 10; // Use pageSize parameter, default to 10
       const offset = (page - 1) * limit;
+
+      console.log("API Debug - Pagination:", { page, pageSize, limit, offset });
 
       // Get total count for pagination
       const totalCount = await db.Employee.count({ where: whereCondition });

@@ -28,25 +28,32 @@ export default function Home() {
   const [isScannerActive, setIsScannerActive] = useState(true);
   const scannerRef = useRef(null);
 
+  // Monitor message state changes for debugging
+  useEffect(() => {
+    console.log("Message state changed:", { message, messageType });
+  }, [message, messageType]);
+
   const showMessage = useCallback((msg, type) => {
+    console.log(`showMessage called: "${msg}" (${type})`);
+
     if (messageTimeoutRef.current) {
       clearTimeout(messageTimeoutRef.current);
+      console.log("Cleared previous message timeout");
     }
 
-    // Force immediate state update
-    setMessage("");
-    setMessageType("");
+    // Set message immediately without clearing first
+    console.log(`Setting message state immediately: "${msg}" (${type})`);
+    setMessage(msg);
+    setMessageType(type);
 
-    // Use setTimeout to ensure state update happens
-    setTimeout(() => {
-      setMessage(msg);
-      setMessageType(type);
-    }, 10);
-
+    // Set longer timeout for better visibility
+    // For error messages, show them longer to ensure visibility
+    const timeoutDuration = type === "error" ? 10000 : 8000;
     messageTimeoutRef.current = setTimeout(() => {
+      console.log("Clearing message due to timeout");
       setMessage("");
       setMessageType("");
-    }, 3000); // 3 seconds for better visibility
+    }, timeoutDuration);
   }, []);
 
   const incrementGuestCount = (employeeId) => {
@@ -137,25 +144,19 @@ export default function Home() {
 
   const onScanSuccess = useCallback(
     async (decodedText) => {
-      if (isProcessing) return;
+      // This function is now called after the QR scanner has already processed the check-in
+      // and shown the success message. We just need to handle any additional UI updates.
       console.log("onScanSuccess called with:", decodedText);
-      setIsProcessing(true);
-      try {
-        console.log("Calling API checkin for QR code:", decodedText);
-        const result = await api.checkin({
-          qrCode: decodedText,
-          sourceType: "QR",
-        });
-        console.log("API checkin result:", result);
-        await handleCheckinResponse(result);
-      } catch (error) {
-        console.error("Error in onScanSuccess:", error);
-        showMessage(error.message || "QR check-in failed", "error");
-      } finally {
+
+      // The QR scanner has already handled the check-in and success message
+      // We can add any additional UI updates here if needed
+
+      // Reset processing state after a short delay to allow the success message to be visible
+      setTimeout(() => {
         setIsProcessing(false);
-      }
+      }, 1000);
     },
-    [isProcessing, handleCheckinResponse, showMessage]
+    [setIsProcessing]
   );
 
   const handleSearch = async (e) => {
@@ -286,10 +287,12 @@ export default function Home() {
 
       <main className={styles.main}>
         <h1 className={styles.title}>QR Code Check-In</h1>
-
         {/* Message Display */}
         {message && (
           <div className={`${styles.message} ${styles[messageType]}`}>
+            <div style={{ fontSize: "0.9rem", fontWeight: "bold" }}>
+              DEBUG: {messageType} - {message}
+            </div>
             {message}
             <div
               style={{ fontSize: "0.8rem", marginTop: "0.5rem", opacity: 0.8 }}

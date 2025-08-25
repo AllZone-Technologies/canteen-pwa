@@ -36,6 +36,9 @@ const QrScanner = forwardRef(
     const cleanupInProgressRef = useRef(false);
     const shouldRestartRef = useRef(false);
     const isIOSRef = useRef(false);
+    const lastScannedCodeRef = useRef("");
+    const scanCooldownRef = useRef(false);
+    const lastScanTimeRef = useRef(0);
 
     // Mark as client-side on mount and detect iOS
     useEffect(() => {
@@ -87,53 +90,179 @@ const QrScanner = forwardRef(
 
     const handleScanSuccess = useCallback(
       async (decodedText) => {
-        if (isProcessing || isScanningRef.current) {
-          console.log("Scan ignored - already processing or scanning");
+        const now = Date.now();
+
+        // Prevent duplicate scans of the same code within a very short time (500ms)
+        // This allows re-scanning for testing after a brief delay
+        if (
+          lastScannedCodeRef.current === decodedText &&
+          now - lastScanTimeRef.current < 500
+        ) {
+          console.log(
+            "Duplicate QR code scanned too quickly, ignoring:",
+            decodedText
+          );
+          return;
+        }
+
+        // Prevent rapid re-scanning (minimum 1 second cooldown for same code)
+        if (
+          lastScannedCodeRef.current === decodedText &&
+          now - lastScanTimeRef.current < 1000
+        ) {
+          console.log("Same QR code scanned too soon, ignoring:", decodedText);
+          return;
+        }
+
+        // Prevent processing if already processing or scanning
+        if (isProcessing || isScanningRef.current || scanCooldownRef.current) {
+          console.log(
+            "Scan ignored - already processing, scanning, or in cooldown"
+          );
           return;
         }
 
         try {
           console.log("Processing QR scan:", decodedText);
+          console.log("Current scanner state:", {
+            lastScannedCode: lastScannedCodeRef.current,
+            lastScanTime: lastScanTimeRef.current,
+            scanCooldown: scanCooldownRef.current,
+            isScanning: isScanningRef.current,
+            isProcessing: isProcessing,
+          });
+
           isScanningRef.current = true;
+          scanCooldownRef.current = true;
+          lastScanTimeRef.current = now;
+          lastScannedCodeRef.current = decodedText;
           setIsProcessing(true);
 
-          // Don't pause the scanner - just let it continue running
-          // This prevents the "paused" message from appearing
-          console.log("Processing scan while scanner continues running");
+          // Show immediate feedback
+          showMessage("Processing QR code...", "info");
 
-          // Check if employee is already checked in
-          const response = await fetch("/api/checkin", {
+          // Add a small delay to prevent race conditions
+          await new Promise((resolve) => setTimeout(resolve, 200));
+
+          // Make the check-in API call directly
+          console.log("Making check-in API call for:", decodedText);
+          const checkinResponse = await fetch("/api/checkin", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ qrCodeData: decodedText, checkOnly: true }),
+            body: JSON.stringify({
+              qrCodeData: decodedText,
+              sourceType: "QR",
+              checkOnly: false,
+            }),
           });
 
-          console.log("Check-in response status:", response.status);
-          const data = await response.json();
-          console.log("Check-in response data:", data);
+          const checkinData = await checkinResponse.json();
+          console.log("Check-in response status:", checkinResponse.status);
+          console.log("Check-in response data:", checkinData);
 
-          if (data.alreadyCheckedIn) {
-            const errorMsg = data.message || `${data.employeeId} already checked in within the last hour`;
-            console.log("Employee already checked in:", errorMsg);
+          if (checkinResponse.ok && checkinData.success) {
+            // Success - show success message
+            const successMsg = checkinData.message || "Check-in successful!";
+            console.log("=== CHECK-IN SUCCESS ===");
+            console.log("Success message:", successMsg);
+            console.log("Response data:", checkinData);
+            showMessage(successMsg, "success");
+            console.log("Success message displayed via showMessage");
+
+            // Add a delay to ensure the success message is visible
+            console.log("Waiting 1 second to ensure message visibility...");
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+
+            // Call onScanSuccess for any additional handling
+            console.log("Calling onScanSuccess callback");
+            onScanSuccess(decodedText);
+            console.log("=== END CHECK-IN SUCCESS ===");
+
+            // Shorter cooldown for success to allow testing
+            setTimeout(() => {
+              scanCooldownRef.current = false;
+              console.log(
+                "Scanner cooldown ended after success, ready for new scans"
+              );
+            }, 1500); // 1.5 second cooldown after success
+          } else {
+            // Handle error cases
+            console.log("Check-in failed, handling error case...");
+            console.log("Response status:", checkinResponse.status);
+            console.log("Response data:", checkinData);
+
+            let errorMsg = "Check-in failed";
+
+            // Check for restriction error (already checked in)
+            if (checkinData.isRestricted) {
+              errorMsg =
+                checkinData.message ||
+                "Already checked in within the last hour";
+              console.log("Showing restriction error:", errorMsg);
+            }
+            // Check for "Please wait" message (time restriction)
+            else if (
+              checkinData.message &&
+              checkinData.message.includes("Please wait")
+            ) {
+              errorMsg = checkinData.message;
+              console.log("Showing time restriction error:", errorMsg);
+            }
+            // Check for other error messages
+            else if (checkinData.message) {
+              errorMsg = checkinData.message;
+              console.log("Showing general error:", errorMsg);
+            }
+            // Check for HTTP error status
+            else if (!checkinResponse.ok) {
+              errorMsg = `Check-in failed (${checkinResponse.status})`;
+              console.log("Showing HTTP error:", errorMsg);
+            }
+
+            console.log("Displaying error message:", errorMsg);
+
+            // Add a small delay to ensure the error message is not overridden
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            console.log("About to call showMessage with error:", errorMsg);
             showMessage(errorMsg, "error");
-            setIsProcessing(false);
-            isScanningRef.current = false;
-            return;
+            console.log("showMessage called for error");
+
+            // Add a delay to ensure error message is visible
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+
+            // Shorter cooldown for errors to allow retrying
+            setTimeout(() => {
+              scanCooldownRef.current = false;
+              console.log(
+                "Scanner cooldown ended after error, ready for new scans"
+              );
+            }, 1000); // 1 second cooldown after error
           }
-
-          // If not already checked in, proceed with normal check-in
-          console.log("Proceeding with normal check-in for:", decodedText);
-          onScanSuccess(decodedText);
-
-          // Note: Scanner continues running - no need to pause/resume
         } catch (error) {
-          console.error("Error checking check-in status:", error);
-          const errorMsg = "An error occurred while checking status. Please try again.";
+          console.error("Error during check-in:", error);
+          const errorMsg = "Check-in failed. Please try again.";
+          console.log("Showing catch block error message:", errorMsg);
           showMessage(errorMsg, "error");
+
+          // Add a delay to ensure error message is visible
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+
+          // Shorter cooldown for catch errors
+          setTimeout(() => {
+            scanCooldownRef.current = false;
+            console.log(
+              "Scanner cooldown ended after catch error, ready for new scans"
+            );
+          }, 1000); // 1 second cooldown after catch error
+        } finally {
+          // Always reset processing state
           setIsProcessing(false);
           isScanningRef.current = false;
+
+          // Note: cooldown is now handled in the success/error blocks above
+          // to provide different cooldown periods based on the outcome
         }
       },
       [isProcessing, setIsProcessing, onScanSuccess, showMessage]
@@ -159,6 +288,14 @@ const QrScanner = forwardRef(
           shouldRestartRef.current = false;
           initializeScanner();
         }
+      },
+      reset: () => {
+        console.log("Reset method called via ref - clearing scanner state");
+        lastScannedCodeRef.current = "";
+        lastScanTimeRef.current = 0;
+        scanCooldownRef.current = false;
+        isScanningRef.current = false;
+        console.log("Scanner state reset complete");
       },
     }));
 
@@ -251,10 +388,21 @@ const QrScanner = forwardRef(
         console.log("Creating new scanner instance");
         scannerRef.current = new ScannerConstructor("reader");
 
+        // Reset scanner state when initializing
+        lastScannedCodeRef.current = "";
+        lastScanTimeRef.current = 0;
+        scanCooldownRef.current = false;
+        isScanningRef.current = false;
+
         const config = {
-          fps: 10,
-          qrbox: { width: 400, height: 400 },
+          fps: 10, // Reduced FPS to prevent rapid scanning
+          qrbox: { width: 300, height: 300 }, // Smaller QR box for faster detection
           aspectRatio: 1,
+          // Improved configuration for better performance
+          disableFlip: false,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true, // Enable barcode detector if available
+          },
           // iOS-specific optimizations
           ...(isIOSRef.current && {
             disableFlip: false,
@@ -274,6 +422,9 @@ const QrScanner = forwardRef(
         setIsInitialized(true);
         isScanningRef.current = false;
         console.log("Scanner initialized successfully");
+
+        // Show success message
+        showMessage("QR Scanner ready! Point camera at QR code", "success");
       } catch (error) {
         console.error("Error initializing scanner:", error);
         // Reset state on error
@@ -355,6 +506,9 @@ const QrScanner = forwardRef(
         <p className={styles.instruction}>
           Align your QR code within the frame
         </p>
+        {!isInitialized && (
+          <p className={styles.statusMessage}>Initializing camera...</p>
+        )}
       </div>
     );
   }

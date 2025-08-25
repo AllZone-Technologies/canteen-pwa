@@ -44,8 +44,9 @@ export default function Employees() {
   const [previewData, setPreviewData] = useState(null);
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
+  const [departments, setDepartments] = useState([]);
   const formRef = useRef(null);
   const { isLoading, setIsLoading } = useLoading();
   const [filters, setFilters] = useState({
@@ -66,18 +67,23 @@ export default function Employees() {
     department: "",
   });
 
-  const departments = [
-    "IT",
-    "HR",
-    "Finance",
-    "Operations",
-    "Marketing",
-    "Sales",
-    "Customer Support",
-    "Research & Development",
-    "Legal",
-    "Administration",
-  ];
+  const fetchDepartments = async () => {
+    try {
+      const response = await fetch("/api/admin/departments");
+      if (!response.ok) throw new Error("Failed to fetch departments");
+      const data = await response.json();
+      setDepartments(data);
+    } catch (err) {
+      setError(err.message);
+      toast.error("Failed to load departments");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDepartments();
+  }, []);
 
   const fetchEmployees = useCallback(async () => {
     try {
@@ -85,11 +91,26 @@ export default function Employees() {
         currentPage,
         filters,
         sort,
+        search: searchTerm,
+        itemsPerPage,
       });
+
+      const queryParams = new URLSearchParams({
+        page: currentPage.toString(),
+        filters: JSON.stringify(filters),
+        sort: JSON.stringify(sort),
+        pageSize: itemsPerPage.toString(),
+      });
+
+      console.log("Query params:", queryParams.toString());
+
+      // Add search parameter if search term exists
+      if (searchTerm.trim()) {
+        queryParams.append("search", searchTerm.trim());
+      }
+
       const response = await fetch(
-        `/api/admin/users?page=${currentPage}&filters=${JSON.stringify(
-          filters
-        )}&sort=${JSON.stringify(sort)}`
+        `/api/admin/users?${queryParams.toString()}`
       );
       if (!response.ok) {
         const error = await response.json();
@@ -107,7 +128,31 @@ export default function Employees() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, filters, sort]);
+  }, [currentPage, filters, sort, searchTerm, itemsPerPage]);
+
+  // Debounced search effect
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchTerm.trim() !== "") {
+        setCurrentPage(1);
+        // Trigger a new fetch by updating the searchTerm dependency
+      } else if (searchTerm === "") {
+        // Only fetch if we had a previous search term
+        setCurrentPage(1);
+        // Trigger a new fetch by updating the searchTerm dependency
+      }
+    }, 500); // 500ms delay
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
+
+  // Effect to handle page size changes
+  useEffect(() => {
+    if (itemsPerPage > 0) {
+      console.log("Page size effect triggered:", itemsPerPage);
+      fetchEmployees();
+    }
+  }, [itemsPerPage]);
 
   useEffect(() => {
     fetchEmployees();
@@ -409,28 +454,14 @@ export default function Employees() {
     }
   };
 
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!searchTerm.trim()) {
-      fetchEmployees();
-      return;
-    }
+  const handleSearchInputChange = (e) => {
+    setSearchTerm(e.target.value);
+  };
 
-    try {
-      const response = await fetch(
-        `/api/admin/users/search?q=${encodeURIComponent(searchTerm)}`
-      );
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Search failed");
-      }
-      const data = await response.json();
-      setEmployees(Array.isArray(data) ? data : data.users || []);
-      setTotalPages(1);
-    } catch (err) {
-      toast.error(err.message);
-      setEmployees([]);
-    }
+  const clearSearch = () => {
+    setSearchTerm("");
+    setCurrentPage(1);
+    // The useEffect will handle the fetch when searchTerm changes
   };
 
   const handleSendQR = async (employeeId) => {
@@ -552,12 +583,26 @@ export default function Employees() {
     setCurrentPage(newPage);
   };
 
-  const handleFilterChange = (newFilters) => {
-    setFilters(newFilters);
-    setCurrentPage(1);
+  const handlePageSizeChange = (e) => {
+    const newPageSize = parseInt(e.target.value);
+    console.log("Page size changed:", {
+      oldSize: itemsPerPage,
+      newSize: newPageSize,
+    });
+    setItemsPerPage(newPageSize);
+    setCurrentPage(1); // Reset to first page when changing page size
+  };
+
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setFilters((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   const handleSortChange = (column) => {
+    console.log("Sorting triggered for column:", column);
     setSort((prevSort) => {
       if (prevSort.by === column) {
         return {
@@ -717,34 +762,77 @@ export default function Employees() {
           </div>
         </div>
 
-        {/* Removed search bar here */}
+        {/* Add search bar back */}
+        <div className={styles.searchContainer}>
+          <div className={styles.searchForm}>
+            <div className={styles.searchInputWrapper}>
+              <input
+                type="text"
+                placeholder="Search employees by name, ID, or email..."
+                value={searchTerm}
+                onChange={handleSearchInputChange}
+                className={styles.searchInput}
+              />
+            </div>
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                className={styles.clearSearchButton}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
 
         <div className={styles.filters}>
           <select
+            id="department"
+            name="department"
             value={filters.department}
-            onChange={(e) =>
-              setFilters({ ...filters, department: e.target.value })
-            }
+            onChange={handleFilterChange}
             className={styles.filterSelect}
           >
             <option value="all">All Departments</option>
-            <option value="IT">IT</option>
-            <option value="HR">HR</option>
-            <option value="Finance">Finance</option>
-            <option value="Operations">Operations</option>
+            {departments.map((dept) => (
+              <option key={dept} value={dept}>
+                {dept}
+              </option>
+            ))}
           </select>
+
+          <div className={styles.pageSizeContainer}>
+            <label htmlFor="pageSize" className={styles.pageSizeLabel}>
+              Show:
+            </label>
+            <select
+              id="pageSize"
+              name="pageSize"
+              value={itemsPerPage}
+              onChange={handlePageSizeChange}
+              className={styles.pageSizeSelect}
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <span className={styles.pageSizeText}>entries</span>
+          </div>
         </div>
 
         <DataTable
           data={employees}
           columns={tableColumns}
-          searchable={true}
+          searchable={false}
           sortable={true}
-          pagination={true}
-          pageSize={itemsPerPage}
+          pagination={false}
           loading={loading}
           emptyMessage="No employees found"
           className={styles.dataTable}
+          onSort={handleSortChange}
+          sortBy={sort}
         />
 
         <div className={styles.pagination}>
@@ -756,7 +844,10 @@ export default function Employees() {
             Previous
           </button>
           <span className={styles.pageInfo}>
-            Page {currentPage} of {totalPages}
+            Page {currentPage} of {totalPages} • Showing{" "}
+            {(currentPage - 1) * itemsPerPage + 1} to{" "}
+            {Math.min(currentPage * itemsPerPage, employees.length)} of{" "}
+            {employees.length} entries
           </span>
           <button
             onClick={() => handlePageChange(currentPage + 1)}

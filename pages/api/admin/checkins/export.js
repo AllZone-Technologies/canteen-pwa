@@ -1,4 +1,9 @@
 import db from "../../../../models";
+import {
+  generatePDF,
+  generateCheckinsHTML,
+  generatePrintableHTML,
+} from "../../../../lib/pdfGenerator";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
@@ -6,9 +11,27 @@ export default async function handler(req, res) {
   }
 
   try {
+    const { format = "csv", startDate, endDate } = req.query;
+
+    // Build where clause for date filtering
+    let whereClause = {};
+    if (startDate && endDate) {
+      whereClause = {
+        created_at: {
+          [db.Sequelize.Op.between]: [
+            new Date(startDate),
+            new Date(endDate + "T23:59:59"),
+          ],
+        },
+      };
+    }
+
     const checkins = await db.VisitLog.findAll({
+      where: whereClause,
       order: [["created_at", "DESC"]],
     });
+
+    console.log(`Found ${checkins.length} check-ins for date range: ${startDate} to ${endDate}`);
 
     // Get all unique employee IDs from the checkins
     const employeeIds = [
@@ -73,25 +96,86 @@ export default async function handler(req, res) {
       };
     });
 
-    // Set headers for CSV download
-    res.setHeader("Content-Type", "text/csv");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="checkins-${
-        new Date().toISOString().split("T")[0]
-      }.csv"`
-    );
+    if (format === "pdf") {
+      try {
+        console.log("Starting PDF generation for checkins...");
+        console.log("Data length:", csvData.length);
 
-    // Convert to CSV
-    const headers = Object.keys(csvData[0] || {});
-    const csvContent = [
-      headers.join(","),
-      ...csvData.map((row) =>
-        headers.map((header) => `"${row[header] || ""}"`).join(",")
-      ),
-    ].join("\n");
+        // Try Puppeteer first
+        const htmlContent = generateCheckinsHTML(csvData, "Check-ins Report");
+        console.log("HTML generated, length:", htmlContent.length);
 
-    return res.status(200).send(csvContent);
+        try {
+          const pdfBuffer = await generatePDF(htmlContent);
+          console.log(
+            "PDF generated successfully with Puppeteer, buffer size:",
+            pdfBuffer.length
+          );
+
+          // Set headers for PDF download
+          res.setHeader("Content-Type", "application/pdf");
+          res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="checkins-${
+              new Date().toISOString().split("T")[0]
+            }.pdf"`
+          );
+
+          return res.status(200).send(pdfBuffer);
+        } catch (puppeteerError) {
+          console.log(
+            "Puppeteer failed, falling back to HTML method:",
+            puppeteerError.message
+          );
+
+          // Fallback: Generate printable HTML
+          const printableHTML = generatePrintableHTML(
+            htmlContent,
+            "Check-ins Report"
+          );
+
+          // Set headers for HTML download
+          res.setHeader("Content-Type", "text/html");
+          res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="checkins-${
+              new Date().toISOString().split("T")[0]
+            }.html"`
+          );
+
+          return res.status(200).send(printableHTML);
+        }
+      } catch (pdfError) {
+        console.error("PDF generation error:", pdfError);
+        console.error("PDF error stack:", pdfError.stack);
+        return res.status(500).json({
+          message: "PDF generation failed",
+          error: pdfError.message,
+          details: "Check server logs for more information",
+        });
+      }
+    } else {
+      // Default CSV format
+      // Set headers for CSV download
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="checkins-${
+          new Date().toISOString().split("T")[0]
+        }.csv"`
+      );
+
+      // Convert to CSV
+      const headers = Object.keys(csvData[0] || {});
+      const csvContent = [
+        headers.join(","),
+        ...csvData.map((row) =>
+          headers.map((header) => `"${row[header] || ""}"`).join(",")
+        ),
+      ].join("\n");
+
+      return res.status(200).send(csvContent);
+    }
   } catch (error) {
     console.error("Error exporting checkins:", error);
     return res.status(500).json({ message: "Internal server error" });

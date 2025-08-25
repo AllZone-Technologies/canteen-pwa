@@ -23,7 +23,17 @@ export default async function handler(req, res) {
     // Handle both qrCode and qrCodeData parameters for backward compatibility
     const qrCodeValue = qrCodeData || qrCode;
 
+    console.log("Checkin request received:", {
+      qrCodeValue,
+      employeeId,
+      contractorId,
+      sourceType,
+      checkOnly,
+      guestCount,
+    });
+
     if (!qrCodeValue && !employeeId && !contractorId) {
+      console.log("Missing required parameters");
       return res.status(400).json({
         message: "QR code data, employee ID, or contractor ID is required",
       });
@@ -34,16 +44,33 @@ export default async function handler(req, res) {
     let checkInEntity = null;
 
     if (qrCodeValue) {
+      console.log("Looking for entity with QR code:", qrCodeValue);
+      
       // First try to find employee by QR code data
       employee = await db.Employee.findOne({
         where: { qr_code_data: qrCodeValue },
       });
+
+      if (employee) {
+        console.log("Employee found:", {
+          id: employee.id,
+          employee_id: employee.employee_id,
+          name: `${employee.firstname} ${employee.lastname}`,
+        });
+      }
 
       // If not found, try to find contractor by QR code data
       if (!employee) {
         contractor = await db.Contractor.findOne({
           where: { qr_code_data: qrCodeValue, is_active: true },
         });
+
+        if (contractor) {
+          console.log("Contractor found:", {
+            id: contractor.id,
+            company_name: contractor.company_name,
+          });
+        }
       }
 
       checkInEntity = employee || contractor;
@@ -72,6 +99,7 @@ export default async function handler(req, res) {
     }
 
     if (!checkInEntity) {
+      console.log("No entity found for checkin");
       return res
         .status(404)
         .json({ message: "Employee or contractor not found" });
@@ -131,6 +159,15 @@ export default async function handler(req, res) {
       const oneHourInMs = 60 * 60 * 1000; // 1 hour in milliseconds
       const timeRemaining = oneHourInMs - timeSinceLastCheckIn;
 
+      console.log("Restriction check details:", {
+        lastCheckInTime: recentCheckIn.checkin_time,
+        currentTime: new Date(),
+        timeSinceLastCheckIn: timeSinceLastCheckIn,
+        timeRemaining: timeRemaining,
+        oneHourInMs: oneHourInMs,
+        isRestricted: timeRemaining > 0
+      });
+
       if (timeRemaining > 0) {
         const minutesRemaining = Math.ceil(timeRemaining / (60 * 1000));
         const secondsRemaining = Math.ceil(timeRemaining / 1000);
@@ -146,6 +183,7 @@ export default async function handler(req, res) {
           } before checking in again`;
         }
 
+        console.log("Returning restriction error:", timeMessage);
         return res.status(400).json({
           message: timeMessage,
           employeeId: entityId,
@@ -157,6 +195,8 @@ export default async function handler(req, res) {
           ),
           isRestricted: true,
         });
+      } else {
+        console.log("No restriction - enough time has passed since last check-in");
       }
     }
 

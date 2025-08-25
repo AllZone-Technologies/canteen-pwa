@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
 import styles from "../styles/AdminLayout.module.css";
 import { toast } from "react-hot-toast";
@@ -146,7 +146,7 @@ const menuItems = [
         <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
       </svg>
     ),
-    path: "/admin/meal-deductions",
+    path: "/admin/auto-meal-deductions",
   },
   {
     title: "Admin Users",
@@ -177,6 +177,7 @@ function AdminLayoutContent({ children }) {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const { adminInfo } = useAdmin();
   const router = useRouter();
+  const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -208,8 +209,28 @@ function AdminLayoutContent({ children }) {
   };
 
   const isActive = (path) => {
-    return router.pathname === path;
+    // Handle exact path matches
+    if (pathname === path) return true;
+
+    // Handle sub-routes (e.g., /admin/employees/123 should highlight Employees tab)
+    if (path !== "/admin/dashboard" && pathname.startsWith(path)) return true;
+
+    // Special case for dashboard - only highlight if exactly on dashboard
+    if (path === "/admin/dashboard" && pathname === "/admin/dashboard")
+      return true;
+
+    return false;
   };
+
+  // Debug active tab detection (remove in production)
+  useEffect(() => {
+    console.log("Current pathname:", pathname);
+    menuItems.forEach((item) => {
+      console.log(
+        `${item.title}: ${isActive(item.path) ? "ACTIVE" : "inactive"}`
+      );
+    });
+  }, [pathname]);
 
   const handleLogout = () => {
     // Clear the admin token cookie
@@ -224,6 +245,15 @@ function AdminLayoutContent({ children }) {
     router.push("/admin/profile");
   };
 
+  const getCurrentPageTitle = () => {
+    for (const item of menuItems) {
+      if (isActive(item.path)) {
+        return item.title;
+      }
+    }
+    return "Admin Dashboard"; // Fallback title
+  };
+
   if (!mounted) return null;
 
   return (
@@ -231,15 +261,13 @@ function AdminLayoutContent({ children }) {
       <aside className={`${styles.sidebar} ${isOpen ? styles.open : ""}`}>
         <div className={styles.sidebarHeader}>
           {isOpen ? (
-            <div className={styles.logoContainer}>
-              <Image
-                src="/logo.svg"
-                alt="UHP Canteen Logo"
-                width={40}
-                height={40}
-                className={styles.logoImage}
-              />
-            </div>
+            <Image
+              src="/logo.svg"
+              alt="UHP Canteen Logo"
+              width={100}
+              height={100}
+              className={styles.logoImage}
+            />
           ) : null}
           <div
             className={
@@ -326,9 +354,9 @@ function AdminLayoutContent({ children }) {
             {isOpen && <span className={styles.navText}>Contractors</span>}
           </Link>
           <Link
-            href="/admin/meal-deductions"
+            href="/admin/auto-meal-deductions"
             className={`${styles.navItem} ${
-              isActive("/admin/meal-deductions") ? styles.active : ""
+              isActive("/admin/auto-meal-deductions") ? styles.active : ""
             }`}
           >
             <span className={styles.navIcon}>
@@ -391,7 +419,7 @@ function AdminLayoutContent({ children }) {
         <header className={styles.mainHeader}>
           <div className={styles.headerContent}>
             <div className={styles.breadcrumb}>
-              <h1>Admin Dashboard</h1>
+              <h1>{getCurrentPageTitle()}</h1>
             </div>
             <div className={styles.headerActions}>
               <div className={styles.profileDropdown}>

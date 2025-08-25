@@ -39,6 +39,8 @@ export default function Reports() {
     }
   };
 
+  console.log("departments", departments);
+
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters((prev) => ({
@@ -83,7 +85,11 @@ export default function Reports() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to generate report");
+        throw new Error(
+          error.message ||
+            error.error ||
+            `HTTP ${response.status}: ${response.statusText}`
+        );
       }
 
       const data = await response.json();
@@ -131,13 +137,28 @@ export default function Reports() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `report-${filters.reportType}-${filters.startDate}.${format}`;
+
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/pdf")) {
+        // Successfully generated PDF
+        link.download = `report-${filters.reportType}-${filters.startDate}.pdf`;
+        toast.success(`Report downloaded in PDF format`);
+      } else if (contentType && contentType.includes("text/html")) {
+        // Fallback to HTML (printable version)
+        link.download = `report-${filters.reportType}-${filters.startDate}.html`;
+        toast.success(
+          `Report downloaded in HTML format. Open the file and use Print to PDF.`
+        );
+      } else {
+        // Other formats (CSV, Excel)
+        link.download = `report-${filters.reportType}-${filters.startDate}.${format}`;
+        toast.success(`Report downloaded in ${format.toUpperCase()} format`);
+      }
+
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-
-      toast.success(`Report downloaded in ${format.toUpperCase()} format`);
     } catch (err) {
       toast.error(err.message);
     }
@@ -255,6 +276,13 @@ export default function Reports() {
                   className={styles.downloadButton}
                 >
                   Download Excel
+                </button>
+                <button
+                  onClick={() => downloadReport("pdf")}
+                  className={styles.downloadButton}
+                  title="Download as PDF (or printable HTML if PDF generation fails)"
+                >
+                  Download PDF
                 </button>
               </div>
             </div>
